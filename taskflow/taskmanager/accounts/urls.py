@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import stripe_views
 
 urlpatterns = [
     path('login/', views.login_view, name='login'),
@@ -11,4 +12,8 @@ urlpatterns = [
     path('profile/2fa/disable/', views.two_factor_disable, name='two_factor_disable'),
     path('pricing/', views.pricing_view, name='pricing'),
     path('set-theme/', views.set_theme_view, name='set_theme'),
+    path('users/<uuid:pk>/', views.user_profile_view, name='user_profile'),
+    path('payments/checkout/', stripe_views.create_checkout_session, name='checkout'),
+    path('payments/success/', stripe_views.checkout_success, name='checkout_success'),
+    path('payments/webhook/', stripe_views.stripe_webhook, name='stripe_webhook'),
 ]

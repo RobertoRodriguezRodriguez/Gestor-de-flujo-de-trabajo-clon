@@ -1,0 +1,633 @@
+{% extends 'base/base.html' %}
+{% block title %}Roadmap — {{ project.name }}{% endblock %}
+{% block breadcrumb %}
+<a href="{% url 'dashboard' %}">Dashboard</a><span class="breadcrumb-sep">/</span>
+<a href="{% url 'org_detail' project.organization.pk %}">{{ project.organization.name }}</a><span class="breadcrumb-sep">/</span>
+<a href="{% url 'project_detail' project.pk %}">{{ project.name }}</a><span class="breadcrumb-sep">/</span>
+Roadmap
+{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{% url 'project_detail' project.pk %}" class="btn btn-ghost btn-sm">← Volver</a>
+  {% if membership.role in 'owner,manager' %}
+  <a href="{% url 'task_create' project.pk %}" class="btn btn-primary btn-sm">+ Nueva tarea</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<style>
+  #roadmap-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  #roadmap-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    flex-wrap: wrap;
+  }
+  #roadmap-toolbar .zoom-btn {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  #roadmap-toolbar .zoom-btn.active,
+  #roadmap-toolbar .zoom-btn:hover {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  #roadmap-body {
+    display: flex;
+    overflow: hidden;
+  }
+  #gantt-labels {
+    flex-shrink: 0;
+    width: 240px;
+    border-right: 1px solid var(--border);
+    background: var(--bg2);
+    overflow: hidden;
+  }
+  #gantt-labels-header {
+    height: 44px;
+    border-bottom: 1px solid var(--border);
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: var(--bg3);
+  }
+  .gantt-label-row {
+    display: flex;
+    align-items: center;
+    height: 38px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--text);
+  }
+  .gantt-label-row:hover { background: var(--bg3); }
+  .gantt-label-row.sprint-row {
+    background: var(--bg3);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    cursor: default;
+    height: 32px;
+  }
+  .gantt-label-row.sprint-row:hover { background: var(--bg3); }
+  .gantt-label-key {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--accent);
+    background: var(--accent-light);
+    padding: 1px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .gantt-label-title {
+    font-size: 0.82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  #gantt-scroll {
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: hidden;
+    position: relative;
+  }
+  #gantt-canvas {
+    position: relative;
+    height: 100%;
+  }
+  #gantt-header {
+    display: flex;
+    height: 44px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    overflow: hidden;
+  }
+  .gantt-header-cell {
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 0 4px;
+    white-space: nowrap;
+  }
+  #gantt-rows-wrap {
+    position: relative;
+  }
+  .gantt-row {
+    height: 38px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .gantt-row.sprint-row {
+    height: 32px;
+    background: var(--bg3);
+  }
+  .gantt-col-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+    opacity: 0.5;
+  }
+  .gantt-bar {
+    position: absolute;
+    top: 6px;
+    height: 26px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #fff;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: filter 0.15s, opacity 0.15s;
+    min-width: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    text-decoration: none;
+  }
+  .gantt-bar:hover { filter: brightness(1.12); }
+  .gantt-row.sprint-row .gantt-bar {
+    top: 4px;
+    height: 24px;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    opacity: 0.85;
+  }
+  .gantt-dot {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  #today-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--danger, #ef4444);
+    opacity: 0.7;
+    z-index: 3;
+    pointer-events: none;
+  }
+  #today-line::before {
+    content: 'Hoy';
+    position: absolute;
+    top: 0;
+    left: 4px;
+    font-size: 0.65rem;
+    color: var(--danger, #ef4444);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  #dep-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 4;
+  }
+  #gantt-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg2);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  #no-dates-msg {
+    display: none;
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+</style>
+
+<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+  <h2 style="font-size:1.1rem;font-weight:700;margin:0;">Roadmap — {{ project.name }}</h2>
+  <span class="badge badge-{{ project.status }}">{{ project.get_status_display }}</span>
+</div>
+
+<div id="roadmap-wrap">
+  <div id="roadmap-toolbar">
+    <span style="font-size:0.8rem;color:var(--text-muted);font-weight:600;">Zoom:</span>
+    <button class="zoom-btn active" data-zoom="week" onclick="setZoom('week',this)">Semana</button>
+    <button class="zoom-btn" data-zoom="month" onclick="setZoom('month',this)">Mes</button>
+    <button class="zoom-btn" data-zoom="quarter" onclick="setZoom('quarter',this)">Trimestre</button>
+    <button class="zoom-btn" style="margin-left:auto;" onclick="scrollToToday()">Ir a hoy</button>
+    <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-muted);cursor:pointer;">
+      <input type="checkbox" id="show-deps" checked onchange="renderDeps()"> Dependencias
+    </label>
+  </div>
+
+  <div id="roadmap-body" style="height:520px;">
+    <div id="gantt-labels">
+      <div id="gantt-labels-header">Tarea</div>
+      <div id="gantt-labels-rows" style="overflow-y:hidden;height:calc(100% - 44px);"></div>
+    </div>
+    <div id="gantt-scroll">
+      <div id="gantt-canvas">
+        <div id="gantt-header"></div>
+        <div id="gantt-rows-wrap">
+          <svg id="dep-svg" width="0" height="0"></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="no-dates-msg">
+    <p>Ninguna tarea tiene fechas de inicio o fin asignadas.<br>
+    Edita las tareas para añadir fechas y verlas en el Roadmap.</p>
+  </div>
+
+  <div id="gantt-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#6b7280;"></div> Backlog</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> Por hacer</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b;"></div> En progreso</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6;"></div> En revisión</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#22c55e;"></div> Hecho</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#6366f1;border-radius:2px;"></div> Sprint</div>
+  </div>
+</div>
+
+<script>
+const TASKS = {{ tasks_json|safe }};
+const SPRINTS = {{ sprints_json|safe }};
+
+const ROW_H = 38;
+const SPRINT_H = 32;
+const HEADER_H = 44;
+
+let zoom = 'week'; // 'week' | 'month' | 'quarter'
+let colWidth = 120; // px per unit (week/month/quarter)
+
+const ZOOM_COL = { week: 100, month: 80, quarter: 72 };
+
+function parseDate(s) {
+  if (!s) return null;
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function dateOnly(dt) {
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+
+function today() { return dateOnly(new Date()); }
+
+// --- Compute timeline range ---
+function getRange() {
+  let min = null, max = null;
+  const all = [...TASKS, ...SPRINTS];
+  for (const item of all) {
+    const s = parseDate(item.start), e = parseDate(item.end);
+    if (s) { if (!min || s < min) min = s; }
+    if (e) { if (!max || e > max) max = e; }
+  }
+  const t = today();
+  if (!min || t < min) min = t;
+  if (!max || t > max) max = t;
+  // pad
+  const padDays = zoom === 'quarter' ? 60 : zoom === 'month' ? 30 : 14;
+  min = new Date(min); min.setDate(min.getDate() - padDays);
+  max = new Date(max); max.setDate(max.getDate() + padDays);
+  return { min, max };
+}
+
+// --- Column grid ---
+function getCols(min, max) {
+  const cols = [];
+  if (zoom === 'week') {
+    // start on Monday of min week
+    const cur = new Date(min);
+    cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));
+    while (cur <= max) {
+      const end = new Date(cur); end.setDate(end.getDate() + 6);
+      const label = cur.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+      cols.push({ start: new Date(cur), end, label });
+      cur.setDate(cur.getDate() + 7);
+    }
+  } else if (zoom === 'month') {
+    const cur = new Date(min.getFullYear(), min.getMonth(), 1);
+    while (cur <= max) {
+      const end = new Date(cur.getFullYear(), cur.getMonth() + 1, 0);
+      const label = cur.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
+      cols.push({ start: new Date(cur), end, label });
+      cur.setMonth(cur.getMonth() + 1);
+    }
+  } else { // quarter
+    const qStart = Math.floor(min.getMonth() / 3) * 3;
+    const cur = new Date(min.getFullYear(), qStart, 1);
+    while (cur <= max) {
+      const end = new Date(cur.getFullYear(), cur.getMonth() + 3, 0);
+      const qNum = Math.floor(cur.getMonth() / 3) + 1;
+      const label = `Q${qNum} ${cur.getFullYear()}`;
+      cols.push({ start: new Date(cur), end, label });
+      cur.setMonth(cur.getMonth() + 3);
+    }
+  }
+  return cols;
+}
+
+function dateToX(date, rangeMin, totalMs, totalW) {
+  const ms = date - rangeMin;
+  return (ms / totalMs) * totalW;
+}
+
+// --- Row building ---
+function buildRows() {
+  const rows = [];
+  // First sprints, then ungrouped tasks
+  const sprintsWithDates = SPRINTS.filter(s => s.start && s.end);
+  for (const s of SPRINTS) {
+    rows.push({ type: 'sprint', data: s });
+    const sprintTasks = TASKS.filter(t => t.sprint_id === s.id);
+    for (const t of sprintTasks) rows.push({ type: 'task', data: t });
+  }
+  // ungrouped tasks (no sprint or sprint not in list)
+  const sprintIds = new Set(SPRINTS.map(s => s.id));
+  const ungrouped = TASKS.filter(t => !t.sprint_id || !sprintIds.has(t.sprint_id));
+  if (ungrouped.length > 0) {
+    rows.push({ type: 'sprint', data: { id: '__none__', name: 'Sin sprint', start: null, end: null, status: '' } });
+    for (const t of ungrouped) rows.push({ type: 'task', data: t });
+  }
+  return rows;
+}
+
+let barPositions = {}; // id -> {x, y, w} for dep arrows
+
+function render() {
+  const { min, max } = getRange();
+  const cols = getCols(min, max);
+  colWidth = ZOOM_COL[zoom];
+  const totalW = cols.length * colWidth;
+  const totalMs = max - min;
+  const rows = buildRows();
+  const totalH = rows.reduce((h, r) => h + (r.type === 'sprint' ? SPRINT_H : ROW_H), 0);
+
+  // Check if any task has dates
+  const hasDates = TASKS.some(t => t.start || t.end) || SPRINTS.some(s => s.start || s.end);
+  document.getElementById('no-dates-msg').style.display = hasDates ? 'none' : '';
+  document.getElementById('roadmap-body').style.display = hasDates ? '' : 'none';
+
+  // --- Labels panel ---
+  const labelsRows = document.getElementById('gantt-labels-rows');
+  labelsRows.innerHTML = '';
+  for (const row of rows) {
+    const div = document.createElement('div');
+    div.className = 'gantt-label-row' + (row.type === 'sprint' ? ' sprint-row' : '');
+    div.style.height = (row.type === 'sprint' ? SPRINT_H : ROW_H) + 'px';
+    if (row.type === 'task') {
+      div.innerHTML = `<span class="gantt-label-key">${row.data.key}</span><span class="gantt-label-title" title="${row.data.title}">${row.data.title}</span>`;
+      div.style.cursor = 'pointer';
+      div.onclick = () => window.location.href = row.data.url;
+    } else {
+      div.innerHTML = `<span class="gantt-label-title">${row.data.name}</span>`;
+    }
+    labelsRows.appendChild(div);
+  }
+
+  // --- Header ---
+  const header = document.getElementById('gantt-header');
+  header.innerHTML = '';
+  header.style.width = totalW + 'px';
+  for (const col of cols) {
+    const cell = document.createElement('div');
+    cell.className = 'gantt-header-cell';
+    cell.style.width = colWidth + 'px';
+    cell.textContent = col.label;
+    header.appendChild(cell);
+  }
+
+  // --- Rows + bars ---
+  const rowsWrap = document.getElementById('gantt-rows-wrap');
+  // Remove previous rows (keep SVG)
+  const svg = document.getElementById('dep-svg');
+  rowsWrap.innerHTML = '';
+  rowsWrap.appendChild(svg);
+  rowsWrap.style.width = totalW + 'px';
+
+  // Column grid lines
+  let xOff = 0;
+  for (let i = 0; i < cols.length; i++) {
+    const line = document.createElement('div');
+    line.className = 'gantt-col-line';
+    line.style.left = xOff + 'px';
+    line.style.height = totalH + 'px';
+    rowsWrap.appendChild(line);
+    xOff += colWidth;
+  }
+
+  // Today line
+  const todayX = dateToX(today(), min, totalMs, totalW);
+  const todayLine = document.createElement('div');
+  todayLine.id = 'today-line';
+  todayLine.style.left = todayX + 'px';
+  todayLine.style.height = totalH + 'px';
+  rowsWrap.appendChild(todayLine);
+
+  barPositions = {};
+  let yOff = 0;
+  for (const row of rows) {
+    const h = row.type === 'sprint' ? SPRINT_H : ROW_H;
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'gantt-row' + (row.type === 'sprint' ? ' sprint-row' : '');
+    rowDiv.style.height = h + 'px';
+    rowDiv.style.width = totalW + 'px';
+
+    const d = row.data;
+    const start = parseDate(d.start);
+    const end = parseDate(d.end);
+
+    if (start || end) {
+      const effectiveStart = start || end;
+      const effectiveEnd = end || start;
+      let x = dateToX(effectiveStart, min, totalMs, totalW);
+      let x2 = dateToX(new Date(effectiveEnd.getTime() + 86400000), min, totalMs, totalW);
+      const w = Math.max(x2 - x, 4);
+
+      const bar = document.createElement('a');
+      bar.className = 'gantt-bar';
+      if (row.type === 'task') {
+        bar.href = d.url;
+        bar.style.background = d.color;
+        bar.title = `${d.key}: ${d.title}`;
+        const label = w > 40 ? (w > 90 ? d.title : d.key) : '';
+        bar.textContent = label;
+        barPositions[d.id] = { x: x + w / 2, y: yOff + h / 2, x1: x, x2: x + w };
+      } else {
+        bar.style.background = '#6366f1';
+        bar.style.cursor = 'default';
+        bar.title = d.name;
+        bar.textContent = w > 40 ? d.name : '';
+        if (d.id !== '__none__') {
+          barPositions[d.id] = { x: x + w / 2, y: yOff + h / 2, x1: x, x2: x + w };
+        }
+      }
+      bar.style.left = x + 'px';
+      bar.style.width = w + 'px';
+      rowDiv.appendChild(bar);
+    } else if (row.type === 'task' && (d.start === null && d.end === null)) {
+      // dot at today for undated tasks
+      const dot = document.createElement('div');
+      dot.className = 'gantt-dot';
+      dot.style.left = (todayX - 5) + 'px';
+      dot.style.background = d.color;
+      dot.style.opacity = '0.4';
+      dot.title = d.title + ' (sin fechas)';
+      dot.onclick = () => window.location.href = d.url;
+      rowDiv.appendChild(dot);
+    }
+
+    rowsWrap.appendChild(rowDiv);
+    yOff += h;
+  }
+
+  // SVG resize
+  svg.style.width = totalW + 'px';
+  svg.style.height = totalH + 'px';
+  svg.setAttribute('width', totalW);
+  svg.setAttribute('height', totalH);
+
+  renderDeps();
+
+  // Sync scroll between labels and rows
+  const scroll = document.getElementById('gantt-scroll');
+  const labelsScroll = document.getElementById('gantt-labels-rows');
+
+  // Sync vertical scroll (rows <-> labels)
+  scroll.addEventListener('scroll', () => {
+    labelsScroll.scrollTop = scroll.scrollTop;
+  }, { passive: true });
+
+  // Canvas total height
+  rowsWrap.style.height = totalH + 'px';
+  document.getElementById('gantt-canvas').style.height = (totalH + HEADER_H) + 'px';
+}
+
+function renderDeps() {
+  const svg = document.getElementById('dep-svg');
+  svg.innerHTML = '';
+  if (!document.getElementById('show-deps').checked) return;
+
+  for (const task of TASKS) {
+    if (!task.parent_id) continue;
+    const from = barPositions[task.parent_id];
+    const to = barPositions[task.id];
+    if (!from || !to) continue;
+
+    const x1 = from.x2, y1 = from.y;
+    const x2 = to.x1, y2 = to.y;
+    const cx = (x1 + x2) / 2;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'var(--accent)');
+    path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('stroke-dasharray', '4 3');
+    path.setAttribute('opacity', '0.6');
+    path.setAttribute('marker-end', 'url(#arrowhead)');
+    svg.appendChild(path);
+  }
+
+  // Arrowhead marker
+  if (TASKS.some(t => t.parent_id) && svg.childElementCount > 0) {
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', 'arrowhead');
+    marker.setAttribute('markerWidth', '8');
+    marker.setAttribute('markerHeight', '6');
+    marker.setAttribute('refX', '8');
+    marker.setAttribute('refY', '3');
+    marker.setAttribute('orient', 'auto');
+    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    poly.setAttribute('points', '0 0, 8 3, 0 6');
+    poly.setAttribute('fill', 'var(--accent)');
+    poly.setAttribute('opacity', '0.6');
+    marker.appendChild(poly);
+    defs.appendChild(marker);
+    svg.insertBefore(defs, svg.firstChild);
+  }
+}
+
+function setZoom(z, btn) {
+  zoom = z;
+  document.querySelectorAll('.zoom-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+  scrollToToday();
+}
+
+function scrollToToday() {
+  const scroll = document.getElementById('gantt-scroll');
+  const { min, max } = getRange();
+  const cols = getCols(min, max);
+  const totalW = cols.length * colWidth;
+  const totalMs = max - min;
+  const x = dateToX(today(), min, totalMs, totalW);
+  scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 2);
+}
+
+// Initial render
+render();
+setTimeout(scrollToToday, 0);
+</script>
+{% endblock %}

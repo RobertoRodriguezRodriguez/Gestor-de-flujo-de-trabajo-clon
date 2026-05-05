@@ -74,6 +74,10 @@
 
       <div class="form-row">
         <div class="form-group">
+          <label class="form-label">Fecha inicio</label>
+          <input type="date" name="start_date" class="form-control" value="{{ task.start_date|date:'Y-m-d'|default:'' }}">
+        </div>
+        <div class="form-group">
           <label class="form-label">Fecha límite</label>
           <input type="date" name="due_date" class="form-control" value="{{ task.due_date|date:'Y-m-d'|default:'' }}">
         </div>
@@ -98,7 +102,10 @@
           <option value="{{ mem.user.pk }}" {% if task.task_responsible_id == mem.user.pk %}selected{% endif %}>{{ mem.user.name }}</option>
           {% endfor %}
         </select>
-        <span class="text-muted text-sm">Esta persona deberá aprobar la estimación de horas.</span>
+        <span class="text-muted text-sm">El responsable deberá aprobar la estimación de horas.</span>
+        <div id="hours-warning" style="display:none;margin-top:6px;padding:7px 10px;border-radius:var(--radius-sm);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);font-size:0.8rem;color:var(--warning);">
+          ⚠ Para que el responsable reciba la notificación debes establecer las horas estimadas.
+        </div>
       </div>
 
       {% if parent_tasks %}
@@ -131,6 +138,24 @@
         </div>
       </div>
       {% endif %}
+
+      <script>
+        (function() {
+          const responsible = document.querySelector('select[name="task_responsible"]');
+          const estH = document.getElementById('est-h');
+          const estM = document.getElementById('est-m');
+          const warning = document.getElementById('hours-warning');
+          function check() {
+            const hasResponsible = responsible && responsible.value !== '';
+            const hasHours = (parseInt(estH?.value) || 0) + (parseInt(estM?.value) || 0) > 0;
+            if (warning) warning.style.display = (hasResponsible && !hasHours) ? 'block' : 'none';
+          }
+          responsible?.addEventListener('change', check);
+          estH?.addEventListener('input', check);
+          estM?.addEventListener('input', check);
+          check();
+        })();
+      </script>
 
       <div class="form-actions">
         <a href="{% url 'project_detail' project.pk %}" class="btn btn-secondary">

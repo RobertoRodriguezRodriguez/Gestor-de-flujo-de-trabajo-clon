@@ -7,6 +7,16 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-producti
 DEBUG = config('DEBUG', default=True, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
+# ── HTTPS / Cookie security ────────────────────────────────────────────────────
+# Set to True in production (behind HTTPS). Keep False in local development.
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
+SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
+SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -104,14 +114,28 @@ LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 MESSAGE_STORAGE = 'django.contrib.messages.storage.cookie.CookieStorage'
 
-# Cache — use Redis in production: django.core.cache.backends.redis.RedisCache
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-    }
-}
+# Session — cerrar sesión tras 30 minutos de inactividad
+SESSION_COOKIE_AGE = 1800              # 30 minutos en segundos
+SESSION_SAVE_EVERY_REQUEST = True      # Reinicia el contador en cada petición
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True # También expira al cerrar el navegador
 
-# Rate limits (django-ratelimit)
+# ── Cache — Redis in production, LocMemCache in development ───────────────────
+# Set REDIS_URL (e.g. redis://localhost:6379/0) to enable Redis.
+# Without Redis, rate limiting is not effective with multiple workers.
+_REDIS_URL = config('REDIS_URL', default='')
+if _REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': _REDIS_URL,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+    }
 RATELIMIT_USE_CACHE = 'default'
 
 # DRF
@@ -136,3 +160,12 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+# Stripe
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_PUBLIC_KEY = config('STRIPE_PUBLIC_KEY', default='')
+STRIPE_PRICE_ID = config('STRIPE_PRICE_ID', default='')
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
+
+# Gemini API Key
+GEMINI_API_KEY = config('GEMINI_API_KEY', default='')

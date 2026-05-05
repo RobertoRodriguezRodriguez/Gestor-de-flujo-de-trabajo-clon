@@ -54,12 +54,21 @@ class Task(models.Model):
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='task')
     title = models.CharField(max_length=300)
     description = models.TextField(blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='backlog')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='backlog', db_index=True)
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium')
     position = models.IntegerField(default=0)
     estimated_min = models.IntegerField(null=True, blank=True, help_text='Estimación en minutos')
     estimated_hours = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    task_responsible = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='responsible_tasks',
+    )
+    hours_requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='hours_requested_tasks',
+    )
     hours_validated = models.BooleanField(default=False)
+    start_date = models.DateField(null=True, blank=True)
     due_date = models.DateField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -110,6 +119,7 @@ class Comment(models.Model):
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, default=None)
 
     class Meta:
         db_table = 'comment'

@@ -93,7 +93,7 @@
   <div class="main-content">
     <header class="topbar">
       <div class="topbar-left">
-        <button class="btn btn-ghost btn-icon" onclick="document.getElementById('sidebar').classList.toggle('open')" style="display:none" id="mobile-menu-btn">
+        <button class="btn btn-ghost btn-icon" onclick="document.getElementById('sidebar').classList.toggle('open')" id="mobile-menu-btn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
         <nav class="breadcrumb">
@@ -157,19 +157,51 @@
   </div>
 </div>
 
-<!-- Search modal -->
-<div class="modal-overlay" id="search-modal">
-  <div class="modal search-modal">
-    <div class="search-input-wrap">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="search-input" class="search-input" type="text" placeholder="Buscar tareas, proyectos, personas..." autocomplete="off" spellcheck="false">
-      <kbd class="search-kbd">Esc</kbd>
+<!-- Shortcut reference panel -->
+<div class="modal-overlay" id="shortcut-panel">
+  <div class="modal shortcut-modal">
+    <div class="modal-header">
+      <span class="modal-title">Atajos de teclado</span>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('shortcut-panel')">✕</button>
     </div>
-    <div id="search-results" class="search-results">
-      <div class="search-empty" style="padding:28px 16px;">
-        <div style="font-size:1.4rem;margin-bottom:8px;">⌕</div>
-        Escribe para buscar en toda tu área de trabajo
+    <div class="modal-body">
+      <div class="shortcut-section">
+        <div class="shortcut-section-title">Navegación</div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>G</kbd><kbd>D</kbd></div><span class="shortcut-desc">Dashboard</span></div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>G</kbd><kbd>T</kbd></div><span class="shortcut-desc">Mis Tareas</span></div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>G</kbd><kbd>O</kbd></div><span class="shortcut-desc">Mis Organizaciones</span></div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>G</kbd><kbd>P</kbd></div><span class="shortcut-desc">Mis Proyectos</span></div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>G</kbd><kbd>B</kbd></div><span class="shortcut-desc">Tablero (en proyecto)</span></div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>G</kbd><kbd>L</kbd></div><span class="shortcut-desc">Lista (en proyecto)</span></div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>G</kbd><kbd>R</kbd></div><span class="shortcut-desc">Roadmap (en proyecto)</span></div>
       </div>
+      <div class="shortcut-section">
+        <div class="shortcut-section-title">Acciones</div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>C</kbd></div><span class="shortcut-desc">Nueva tarea (en proyecto)</span></div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>⌘</kbd><kbd>K</kbd></div><span class="shortcut-desc">Búsqueda rápida</span></div>
+      </div>
+      <div class="shortcut-section">
+        <div class="shortcut-section-title">Interfaz</div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>?</kbd></div><span class="shortcut-desc">Mostrar esta ayuda</span></div>
+        <div class="shortcut-row"><div class="shortcut-keys"><kbd>Esc</kbd></div><span class="shortcut-desc">Cerrar panel / modal</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Command palette -->
+<div class="modal-overlay cmd-palette-overlay" id="cmd-palette">
+  <div class="cmd-palette-box">
+    <div class="cmd-palette-input-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="cmd-input" type="text" placeholder="Ir a..." autocomplete="off" spellcheck="false">
+      <kbd style="flex-shrink:0;">Esc</kbd>
+    </div>
+    <div id="cmd-results"></div>
+    <div class="cmd-footer">
+      <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
+      <span><kbd>↵</kbd> abrir</span>
+      <span><kbd>Esc</kbd> cerrar</span>
     </div>
   </div>
 </div>

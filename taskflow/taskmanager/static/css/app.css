@@ -665,3 +665,154 @@ hr.divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; 
 .flt-sep { height:1px; background:var(--border); margin:3px 2px; flex-shrink:0; }
 .flt-divider { height:1px; background:var(--border); margin:4px 0; }
 .board-col-empty-msg { display:none; padding:20px 8px; text-align:center; color:var(--text-muted); font-size:0.78rem; }
+
+
+/* ── Online status indicator ─────────────────────────────────────────────── */
+.status-dot {
+  width:10px; height:10px; border-radius:50%; flex-shrink:0;
+  border:2px solid var(--bg2);
+}
+.status-dot.online  { background:#22c55e; }
+.status-dot.away    { background:#f59e0b; }
+.status-dot.offline { background:#6b7280; }
+.avatar-wrapper { position:relative; display:inline-flex; flex-shrink:0; }
+.avatar-wrapper .status-dot {
+  position:absolute; bottom:0; right:0;
+  border-color:var(--bg2);
+}
+
+/* ── Kanban drag & drop ──────────────────────────────────────────────────── */
+.task-card.dragging { opacity:0.4; }
+.drop-placeholder {
+  height:72px;
+  border:2px dashed var(--accent);
+  border-radius:var(--radius-sm);
+  background:var(--accent-light);
+  margin-bottom:8px;
+  pointer-events:none;
+}
+
+/* ── Keyboard shortcuts ──────────────────────────────────────────────────── */
+kbd {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:22px; height:22px; padding:0 5px;
+  border-radius:4px;
+  background:var(--bg3);
+  border:1px solid var(--border);
+  box-shadow:0 1px 0 var(--border);
+  font-family:var(--font-mono);
+  font-size:0.7rem; font-weight:600;
+  color:var(--text);
+  line-height:1;
+  white-space:nowrap;
+}
+.shortcut-modal { max-width:480px; }
+.shortcut-section { margin-bottom:18px; }
+.shortcut-section:last-child { margin-bottom:0; }
+.shortcut-section-title {
+  font-size:0.68rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.07em; color:var(--text-muted); margin-bottom:8px;
+}
+.shortcut-row {
+  display:flex; align-items:center; gap:12px;
+  padding:6px 0; border-bottom:1px solid var(--border); font-size:0.83rem;
+}
+.shortcut-row:last-child { border-bottom:none; }
+.shortcut-keys { display:flex; gap:4px; align-items:center; min-width:80px; flex-shrink:0; }
+.shortcut-desc { color:var(--text-muted); font-size:0.8rem; }
+
+/* ── Command palette ─────────────────────────────────────────────────────── */
+.cmd-palette-overlay.modal-overlay {
+  align-items:flex-start;
+  padding-top:72px;
+  background:rgba(0,0,0,0.55);
+}
+.cmd-palette-box {
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:0 24px 64px rgba(0,0,0,0.45);
+  width:100%; max-width:560px;
+  overflow:hidden;
+}
+.cmd-palette-input-wrap {
+  display:flex; align-items:center; gap:10px;
+  padding:14px 16px; border-bottom:1px solid var(--border);
+}
+.cmd-palette-input-wrap svg { flex-shrink:0; color:var(--text-muted); }
+#cmd-input {
+  background:transparent; border:none; outline:none;
+  font-size:1rem; color:var(--text); width:100%;
+  font-family:inherit;
+}
+#cmd-input::placeholder { color:var(--text-muted); }
+#cmd-results { max-height:340px; overflow-y:auto; padding:6px; }
+.cmd-item {
+  display:flex; align-items:center; gap:12px;
+  padding:9px 12px; border-radius:var(--radius-sm);
+  cursor:pointer; font-size:0.875rem; color:var(--text);
+  transition:background 0.1s;
+}
+.cmd-item:hover, .cmd-item.cmd-item-active {
+  background:var(--accent-light); color:var(--accent);
+}
+.cmd-item-icon { width:18px; height:18px; display:flex; align-items:center; justify-content:center; flex-shrink:0; opacity:0.65; }
+.cmd-footer {
+  display:flex; gap:16px; padding:8px 16px;
+  border-top:1px solid var(--border);
+  font-size:0.7rem; color:var(--text-muted);
+}
+.cmd-footer kbd { font-size:0.62rem; min-width:18px; height:18px; }
+
+/* ── Velocity chart ──────────────────────────────────────────────────────── */
+.vel-btn {
+  padding:4px 10px; border-radius:5px; font-size:0.78rem; font-weight:500;
+  border:1px solid var(--border); background:var(--bg3); color:var(--text-muted);
+  cursor:pointer; transition:background 0.15s, color 0.15s;
+}
+.vel-btn:hover       { background:var(--bg2); color:var(--text); }
+.vel-btn-active      { background:var(--accent); color:#fff; border-color:var(--accent); }
+.vel-legend {
+  display:flex; gap:16px; align-items:center; padding-top:10px; flex-wrap:wrap;
+}
+.vel-legend-item {
+  display:flex; align-items:center; gap:5px;
+  font-size:0.72rem; color:var(--text-muted);
+}
+.vel-legend-swatch {
+  width:10px; height:10px; border-radius:2px; background:var(--accent); flex-shrink:0;
+}
+.vel-legend-avg { font-family:var(--font-mono); letter-spacing:0.02em; }
+
+/* ── Sprint burndown chart ───────────────────────────────────────────────── */
+.burndown-meta {
+  display:flex; align-items:center; gap:12px;
+  margin-bottom:10px;
+}
+.burndown-pace {
+  font-size:0.75rem; font-weight:600;
+  display:flex; align-items:center; gap:4px;
+}
+.burndown-chart {
+  margin: 0 -20px;
+  border-top:1px solid var(--border);
+  background:var(--bg3);
+  border-radius:0 0 var(--radius) var(--radius);
+  padding:12px 16px 8px;
+}
+.burndown-legend {
+  display:flex; gap:16px; justify-content:flex-end;
+  padding:4px 0 0;
+}
+.bd-legend-item {
+  display:flex; align-items:center; gap:5px;
+  font-size:0.72rem; color:var(--text-muted);
+}
+
+/* ── Filter option count badge (ANA-03) ──────────────────────────────────── */
+.flt-opt-count {
+  margin-left:auto; padding:1px 7px;
+  background:var(--bg3); border-radius:10px;
+  font-size:0.68rem; font-weight:600; color:var(--text-muted);
+  flex-shrink:0; line-height:1.6;
+}

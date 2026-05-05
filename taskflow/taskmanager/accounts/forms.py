@@ -57,3 +57,9 @@ class ProfileForm(forms.ModelForm):
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
         }
+
+    def clean_avatar(self):
+        avatar = self.cleaned_data.get('avatar')
+        if avatar and hasattr(avatar, 'size') and avatar.size > 5 * 1024 * 1024:
+            raise forms.ValidationError('La imagen no puede superar los 5 MB.')
+        return avatar

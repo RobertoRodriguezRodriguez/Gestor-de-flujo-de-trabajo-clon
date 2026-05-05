@@ -16,4 +16,5 @@ urlpatterns = [
     path('projects/<uuid:project_pk>/tasks/<uuid:task_pk>/timelogs/', views.timelog_create, name='timelog_create'),
     path('projects/<uuid:project_pk>/tasks/<uuid:pk>/validate-hours/', views.task_validate_hours, name='task_validate_hours'),
     path('projects/<uuid:project_pk>/tags/new/', views.tag_create, name='tag_create'),
+    path('projects/<uuid:project_pk>/tasks/reorder/', views.task_reorder, name='task_reorder'),
 ]

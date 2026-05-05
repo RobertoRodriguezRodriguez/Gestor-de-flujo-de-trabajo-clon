@@ -67,9 +67,7 @@ def require_project_member(pk_kwarg='pk'):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
             from projects.models import Project, ProjectMember
-            project = get_object_or_404(
-                Project, pk=kwargs.get(pk_kwarg), deleted_at__isnull=True
-            )
+            project = get_object_or_404(Project, pk=kwargs.get(pk_kwarg))
             membership = ProjectMember.objects.filter(
                 project=project, user=request.user
             ).first()
@@ -95,9 +93,7 @@ def project_permission(perm_func, pk_kwarg='pk'):
         def wrapper(request, *args, **kwargs):
             from projects.models import Project, ProjectMember
             project_pk = kwargs.get(pk_kwarg)
-            project = get_object_or_404(
-                Project, pk=project_pk, deleted_at__isnull=True
-            )
+            project = get_object_or_404(Project, pk=project_pk)
             membership = ProjectMember.objects.filter(
                 project=project, user=request.user
             ).first()

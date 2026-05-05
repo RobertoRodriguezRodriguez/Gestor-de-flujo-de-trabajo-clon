@@ -1,3 +1,6 @@
+import re
+from datetime import timedelta
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -14,23 +17,52 @@ User = get_user_model()
 
 @login_required
 def dashboard(request):
+    query = request.GET.get('q', '').strip()
+    
     user_orgs = OrganizationUser.objects.filter(user=request.user).select_related('organization')
-
     user_projects = Project.objects.filter(
         members__user=request.user, deleted_at__isnull=True
-    ).select_related('organization', 'owner').distinct()[:6]
-
+    ).select_related('organization', 'owner').distinct()
+    
     from tasks.models import Task
+    from django.db.models import Q
     from django.utils import timezone
-    my_tasks = Task.objects.filter(assignee=request.user).exclude(status='done')
-    overdue_tasks = my_tasks.filter(due_date__lt=timezone.now().date())
-
-    context = {
-        'user_orgs': user_orgs,
-        'user_projects': user_projects,
-        'my_tasks_count': my_tasks.count(),
-        'overdue_count': overdue_tasks.count(),
-    }
+    
+    if query:
+        search_orgs = user_orgs.filter(organization__name__icontains=query)
+        search_projects = user_projects.filter(
+            Q(name__icontains=query) | 
+            Q(key__icontains=query) | 
+            Q(description__icontains=query)
+        )
+        search_tasks = Task.objects.filter(
+            project__members__user=request.user,
+            project__deleted_at__isnull=True
+        ).filter(
+            Q(title__icontains=query) | 
+            Q(description__icontains=query) |
+            Q(assignee__name__icontains=query)
+        ).select_related('project', 'assignee').distinct()[:20]
+        
+        context = {
+            'query': query,
+            'search_orgs': search_orgs,
+            'search_projects': search_projects,
+            'search_tasks': search_tasks,
+        }
+    else:
+        user_projects = user_projects[:6]
+        my_tasks = Task.objects.filter(assignee=request.user).exclude(status='done')
+        overdue_tasks = my_tasks.filter(due_date__lt=timezone.now().date())
+    
+        context = {
+            'query': query,
+            'user_orgs': user_orgs,
+            'user_projects': user_projects,
+            'my_tasks_count': my_tasks.count(),
+            'overdue_count': overdue_tasks.count(),
+        }
+        
     return render(request, 'organizations/dashboard.html', context)
 
 
@@ -85,6 +117,13 @@ def org_invite(request, pk, org=None, org_membership=None):
             )
             if created:
                 messages.success(request, f'{user.name} añadido/a a la organización.')
+                if user != request.user:
+                    from notifications.models import Notification
+                    Notification.objects.create(
+                        user=user,
+                        type='org_added',
+                        message=f'{request.user.name} te ha añadido a la organización "{org.name}".',
+                    )
             else:
                 messages.warning(request, f'{user.name} ya es miembro.')
         except User.DoesNotExist:
@@ -255,7 +294,8 @@ def org_hours_export(request, pk, org=None, org_membership=None):
     if user_id:
         qs = qs.filter(user_id=user_id)
 
-    filename_base = f'horas_{org.name.replace(" ", "_")}_{date.today()}'
+    safe_org_name = re.sub(r'[^\w\-]', '_', org.name)[:40]
+    filename_base = f'horas_{safe_org_name}_{date.today()}'
     headers = ['Fecha', 'Proyecto', 'Clave', 'Tarea', 'Ref. tarea', 'Usuario', 'Horas', 'Nota']
 
     def row_data(log):

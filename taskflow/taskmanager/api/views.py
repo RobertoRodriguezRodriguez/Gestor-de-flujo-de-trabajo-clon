@@ -10,6 +10,7 @@ from projects.models import Project, ProjectMember
 from tasks.models import Task, Comment
 from projects.permissions import (
     can_create_task, can_edit_task, can_delete_task, can_manage_members,
+    can_edit_project,
 )
 from .serializers import (
     UserSerializer, ProjectSerializer, TaskSerializer, CommentSerializer,
@@ -95,7 +96,7 @@ class ProjectRetrieveUpdateView(generics.RetrieveUpdateAPIView):
     def update(self, request, *args, **kwargs):
         project = self.get_object()
         membership = project.members.filter(user=request.user).first()
-        if not can_edit_task(membership):
+        if not can_edit_project(membership):
             return Response({'error': 'Sin permisos'}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
@@ -167,7 +168,7 @@ class CommentListCreateView(_ProjectTaskMixin, generics.ListCreateAPIView):
         return get_object_or_404(Task, pk=self.kwargs['task_pk'], project=project)
 
     def get_queryset(self):
-        return self._get_task().comments.select_related('user')
+        return self._get_task().comments.filter(deleted_at__isnull=True).select_related('user')
 
     def perform_create(self, serializer):
         serializer.save(task=self._get_task(), user=self.request.user)
@@ -182,7 +183,10 @@ class CommentDestroyView(_ProjectTaskMixin, generics.DestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         from rest_framework.exceptions import PermissionDenied
+        from django.utils import timezone
         comment = self.get_object()
         if comment.user != request.user:
             raise PermissionDenied('Solo puedes eliminar tus propios comentarios.')
-        return super().destroy(request, *args, **kwargs)
+        comment.deleted_at = timezone.now()
+        comment.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)

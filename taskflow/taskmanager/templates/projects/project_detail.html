@@ -7,10 +7,35 @@
 {% endblock %}
 
 {% block topbar_actions %}
-  {% if membership.role in 'owner,manager' %}
-  <a href="{% url 'project_edit' project.pk %}" class="btn btn-secondary btn-sm">Editar</a>
+  {% if user.is_premium %}
+  <div class="flt-drop" style="position: relative; display: inline-block;">
+    <button class="btn btn-ghost btn-sm btn-icon flt-btn" id="btn-premium-actions" style="font-size: 1.2rem; padding: 4px 8px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </button>
+    <div class="flt-menu" id="menu-premium-actions" style="right: 0; left: auto; top: 100%; margin-top: 4px; min-width: 180px; padding: 8px 0;">
+      <a href="{% url 'task_create' project.pk %}" class="dropdown-item" style="font-weight:600; color:var(--primary);">+ Nueva tarea</a>
+      <a href="{% url 'project_roadmap' project.pk %}" class="dropdown-item">Roadmap</a>
+      <div class="flt-sep" style="margin: 4px 0;"></div>
+      <span style="padding: 8px 16px; font-weight: 500; color:var(--accent);">✨ IA Pro</span>
+      <button class="dropdown-item" onclick="toggleBoardChat()" style="font-weight: 500; background: linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.08));">✨ Board Chat</button>
+      <a href="{% url 'project_summary_pdf' project.pk %}" class="dropdown-item" onclick="this.innerHTML='<span class=\'ai-spinner-inline\' style=\'border-top-color:var(--text); width:12px; height:12px; border-width:1.5px;\'></span> Generando...'; this.style.pointerEvents='none'; setTimeout(() => { this.innerHTML='✨ Resumen PDF'; this.style.pointerEvents='auto'; }, 6000);">✨ Resumen PDF</a>
+      {% if membership.role in 'owner,manager' %}
+      <div class="flt-sep" style="margin: 4px 0;"></div>
+      <a href="{% url 'project_edit' project.pk %}" class="dropdown-item">Editar proyecto</a>
+      {% endif %}
+    </div>
+  </div>
+  <style>
+    .dropdown-item { display: block; padding: 8px 16px; color: var(--text); font-size: 0.85rem; text-decoration: none; cursor: pointer; background: transparent; border: none; width: 100%; text-align: left; transition: background 0.15s; }
+    .dropdown-item:hover { background: var(--bg3); }
+  </style>
+  {% else %}
+    {% if membership.role in 'owner,manager' %}
+    <a href="{% url 'project_edit' project.pk %}" class="btn btn-secondary btn-sm">Editar</a>
+    {% endif %}
+    <a href="{% url 'project_roadmap' project.pk %}" class="btn btn-ghost btn-sm">Roadmap</a>
+    <a href="{% url 'task_create' project.pk %}" class="btn btn-primary btn-sm">+ Nueva tarea</a>
   {% endif %}
-  <a href="{% url 'task_create' project.pk %}" class="btn btn-primary btn-sm">+ Nueva tarea</a>
 {% endblock %}
 
 {% block content %}
@@ -74,6 +99,10 @@
 
   <!-- Inline filter row -->
   <div class="flt-row">
+    <!-- Search bar -->
+    <div class="flt-search" style="margin-right:8px;">
+      <input type="text" id="search-input" placeholder="Buscar tareas..." style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);font-size:0.85rem;width:200px;">
+    </div>
 
     <!-- Asignado -->
     <div class="flt-drop">
@@ -229,8 +258,33 @@
           <th class="th-sort" data-col="due_date">Vence <span class="sort-icon"></span></th>
         </tr>
       </thead>
-      <tbody id="list-tbody">
-        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">Cargando…</td></tr>
+      <tbody>
+        {% for status_key, status_data in tasks_by_status.items %}
+        {% for task in status_data.tasks %}
+        <tr style="cursor:pointer;" onclick="window.location='{% url 'task_detail' project.pk task.pk %}'"
+            data-assignee="{% if task.assignee %}{{ task.assignee.pk }}{% endif %}"
+            data-sprint="{% if task.sprint %}{{ task.sprint.pk }}{% endif %}"
+            data-priority="{{ task.priority }}"
+            data-tags="{% for tag in task.tags.all %}{{ tag.pk }}{% if not forloop.last %},{% endif %}{% endfor %}">
+          <td><span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-muted);">{{ project.key }}-{{ task.project_sequence }}</span></td>
+          <td style="font-weight:500;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ task.title }}</td>
+          <td><span class="badge badge-{{ task.type }}">{{ task.get_type_display }}</span></td>
+          <td><span class="badge badge-{{ task.status }}">{{ task.get_status_display }}</span></td>
+          <td><span class="badge badge-{{ task.priority }}">{{ task.get_priority_display }}</span></td>
+          <td>
+            {% if task.assignee %}
+            <a href="{% url 'user_profile' task.assignee.pk %}" style="display:flex;align-items:center;gap:6px;color:var(--text);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+              <div class="avatar avatar-sm">{% if task.assignee.avatar %}<img src="{{ task.assignee.avatar.url }}" alt="">{% else %}{{ task.assignee.get_initials }}{% endif %}</div>
+              <span class="text-sm">{{ task.assignee.name }}</span>
+            </a>
+            {% else %}<span class="text-muted text-sm">—</span>{% endif %}
+          </td>
+          <td class="{% if task.is_overdue %}text-danger{% else %}text-muted{% endif %} text-sm">
+            {{ task.due_date|date:"d M Y"|default:"—" }}
+          </td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
       </tbody>
     </table>
     <div id="list-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border);min-height:48px;"></div>
@@ -266,9 +320,31 @@
   {% endif %}
 
   {% if sprints %}
+
+  <!-- Velocity chart card -->
+  <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <span class="card-title" style="margin:0;">Velocidad del equipo</span>
+      <div id="vel-toggle" style="display:flex;gap:4px;">
+        <button class="vel-btn vel-btn-active" data-metric="tasks" onclick="switchVelMetric('tasks',this)">Tareas</button>
+        <button class="vel-btn" id="vel-hours-btn" data-metric="hours" onclick="switchVelMetric('hours',this)">Horas est.</button>
+      </div>
+    </div>
+    <div id="velocity-chart"></div>
+    <div id="velocity-empty" class="text-muted text-sm" style="display:none;padding:24px 0;text-align:center;">
+      Completa al menos un sprint para ver la velocidad del equipo.
+    </div>
+    <div class="vel-legend">
+      <span class="vel-legend-item"><span class="vel-legend-swatch" style="opacity:0.85;"></span>Completado</span>
+      <span class="vel-legend-item"><span class="vel-legend-swatch" style="opacity:0.45;"></span>Activo</span>
+      <span class="vel-legend-item vel-legend-avg">--- Promedio</span>
+    </div>
+  </div>
+
+  <!-- Individual sprint cards -->
   <div style="display:flex;flex-direction:column;gap:12px;">
     {% for sprint in sprints %}
-    <div class="card">
+    <div class="card" style="padding-bottom:0;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:10px;">
           <span class="badge badge-{{ sprint.status }}">{{ sprint.get_status_display }}</span>
@@ -280,13 +356,252 @@
         </span>
       </div>
       {% if sprint.goal %}<p class="text-muted text-sm" style="margin-bottom:8px;">{{ sprint.goal }}</p>{% endif %}
-      <div class="text-muted text-sm">{{ sprint.tasks.count }} tarea{{ sprint.tasks.count|pluralize }}</div>
+      <div class="burndown-meta" id="bd-meta-{{ sprint.pk }}">
+        <span class="text-muted text-sm">{{ sprint.tasks.count }} tarea{{ sprint.tasks.count|pluralize }}</span>
+      </div>
+      <div class="burndown-chart" id="bd-chart-{{ sprint.pk }}"></div>
     </div>
     {% endfor %}
   </div>
   {% else %}
   <div class="empty-state"><div class="empty-icon">🏃</div><h3>Sin sprints</h3><p>Crea sprints para organizar el trabajo del equipo.</p></div>
   {% endif %}
+
+<script>
+(function () {
+  const BD   = {{ burndown_json|safe }};
+  const VEL  = {{ velocity_json|safe }};
+
+  // ── Shared SVG helpers ──────────────────────────────────────────────────
+  const NS = 'http://www.w3.org/2000/svg';
+  function svgEl(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+    return e;
+  }
+  function svgTxt(x, y, content, attrs) {
+    const t = svgEl('text', { x, y, 'font-size': '9.5', fill: 'var(--text-muted)', ...attrs });
+    t.textContent = content;
+    return t;
+  }
+  function makeSvg(W, H) {
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+    svg.style.cssText = 'width:100%;height:auto;display:block;';
+    return svg;
+  }
+
+  // ── Velocity chart ──────────────────────────────────────────────────────
+  const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  function fmtDate(iso) { const [,m,d] = iso.split('-'); return `${+d} ${MONTHS[+m-1]}`; }
+
+  let velMetric = 'tasks';
+  const velContainer = document.getElementById('velocity-chart');
+  const velEmpty     = document.getElementById('velocity-empty');
+  const hoursBtnEl   = document.getElementById('vel-hours-btn');
+
+  // Hide hours toggle if no sprint has hour data
+  const hasHours = VEL.some(s => s.hours_total > 0);
+  if (!hasHours && hoursBtnEl) hoursBtnEl.style.display = 'none';
+
+  function drawVelocity(metric) {
+    if (!velContainer) return;
+    velContainer.innerHTML = '';
+
+    const eligible = VEL.filter(s => s.tasks_total > 0 || s.tasks_done > 0);
+    if (eligible.length === 0) {
+      if (velEmpty) velEmpty.style.display = '';
+      return;
+    }
+    if (velEmpty) velEmpty.style.display = 'none';
+
+    const values = eligible.map(s => metric === 'hours' ? s.hours_done : s.tasks_done);
+    const maxVal = Math.max(...values, 1);
+    const avg    = values.reduce((a, b) => a + b, 0) / values.length;
+
+    const W = 520, H = 150;
+    const PL = 36, PR = 40, PT = 16, PB = 36;
+    const cw = W - PL - PR, ch = H - PT - PB;
+    const n = eligible.length;
+    const slotW = cw / n;
+    const barW  = Math.max(Math.min(slotW * 0.55, 44), 8);
+
+    function xC(i)  { return PL + slotW * i + slotW / 2; }
+    function yV(v)  { return PT + (1 - v / maxVal) * ch; }
+
+    const svg = makeSvg(W, H);
+
+    // Horizontal grid (25 / 50 / 75 / 100%)
+    [0.25, 0.5, 0.75, 1].forEach(f => {
+      const yy = PT + (1 - f) * ch;
+      svg.appendChild(svgEl('line', { x1: PL, y1: yy, x2: W - PR, y2: yy, stroke: 'var(--border)', 'stroke-width': f === 1 ? '1' : '0.5', opacity: '0.6' }));
+      const labelVal = metric === 'hours'
+        ? (Math.round(maxVal * f * 10) / 10) + 'h'
+        : Math.round(maxVal * f);
+      svg.appendChild(svgTxt(PL - 4, yy, labelVal, { 'text-anchor': 'end', 'dominant-baseline': 'middle' }));
+    });
+
+    // Baseline
+    svg.appendChild(svgEl('line', { x1: PL, y1: PT + ch, x2: W - PR, y2: PT + ch, stroke: 'var(--border)', 'stroke-width': '1' }));
+
+    // Average line + label
+    if (eligible.length > 1) {
+      const avgY = yV(avg);
+      svg.appendChild(svgEl('line', { x1: PL, y1: avgY, x2: W - PR, y2: avgY, stroke: 'var(--accent)', 'stroke-width': '1.5', 'stroke-dasharray': '5 3', opacity: '0.7' }));
+      const avgLabel = metric === 'hours'
+        ? `∅ ${Math.round(avg * 10) / 10}h`
+        : `∅ ${Math.round(avg * 10) / 10}`;
+      svg.appendChild(svgTxt(W - PR + 4, avgY, avgLabel, { 'text-anchor': 'start', 'dominant-baseline': 'middle', fill: 'var(--accent)', 'font-size': '8.5', 'font-weight': '600' }));
+    }
+
+    // Bars
+    eligible.forEach((sprint, i) => {
+      const v   = values[i];
+      const cx  = xC(i);
+      const bx  = cx - barW / 2;
+      const barH = Math.max((v / maxVal) * ch, v > 0 ? 2 : 0);
+      const by  = PT + ch - barH;
+      const opacity = sprint.status === 'active' ? '0.45' : '0.85';
+
+      const rect = svgEl('rect', { x: bx, y: by, width: barW, height: barH, rx: '3', fill: 'var(--accent)', opacity });
+      const titleEl = svgEl('title', {});
+      const unit = metric === 'hours' ? 'h' : ' tareas';
+      titleEl.textContent = `${sprint.name}: ${v}${unit}`;
+      rect.appendChild(titleEl);
+      svg.appendChild(rect);
+
+      // Value label above bar
+      if (v > 0) {
+        const insideBar = barH > 20;
+        const labelY = insideBar ? by + 13 : by - 4;
+        const displayVal = metric === 'hours' ? v + 'h' : String(v);
+        svg.appendChild(svgTxt(cx, labelY, displayVal, {
+          'text-anchor': 'middle',
+          fill: insideBar ? '#fff' : 'var(--text)',
+          'font-size': '9', 'font-weight': '700',
+          'dominant-baseline': insideBar ? 'auto' : 'auto',
+        }));
+      }
+
+      // X-axis sprint label — split at space if too long
+      const words = sprint.label.split(' ');
+      if (words.length > 1 && slotW < 70) {
+        // Two-line label
+        const mid = Math.ceil(words.length / 2);
+        const l1 = words.slice(0, mid).join(' ');
+        const l2 = words.slice(mid).join(' ');
+        svg.appendChild(svgTxt(cx, H - 18, l1, { 'text-anchor': 'middle' }));
+        svg.appendChild(svgTxt(cx, H - 6,  l2, { 'text-anchor': 'middle' }));
+      } else {
+        svg.appendChild(svgTxt(cx, H - 8, sprint.label, { 'text-anchor': 'middle' }));
+      }
+    });
+
+    velContainer.appendChild(svg);
+  }
+
+  window.switchVelMetric = function (metric, btn) {
+    velMetric = metric;
+    document.querySelectorAll('.vel-btn').forEach(b => b.classList.remove('vel-btn-active'));
+    btn.classList.add('vel-btn-active');
+    drawVelocity(metric);
+  };
+
+  drawVelocity(velMetric);
+
+  // ── Burndown charts ─────────────────────────────────────────────────────
+  if (!BD || !Object.keys(BD).length) return;
+
+  function drawBurndown(container, data) {
+    const W = 520, H = 130;
+    const PL = 32, PR = 12, PT = 10, PB = 26;
+    const cw = W - PL - PR, ch = H - PT - PB;
+
+    const { total, actual, start, end, today } = data;
+    const toMs    = s => new Date(s + 'T00:00:00').getTime();
+    const startMs = toMs(start), endMs = toMs(end), rangeMs = endMs - startMs || 1;
+
+    function xOf(iso) { return PL + Math.max(0, Math.min(1, (toMs(iso) - startMs) / rangeMs)) * cw; }
+    function yOf(rem) { return PT + (1 - Math.max(0, Math.min(total, rem)) / total) * ch; }
+
+    const svg = makeSvg(W, H);
+
+    [0.25, 0.5, 0.75].forEach(f => svg.appendChild(svgEl('line', {
+      x1: PL, y1: PT + ch * (1-f), x2: W-PR, y2: PT + ch * (1-f),
+      stroke: 'var(--border)', 'stroke-width': '0.5', opacity: '0.5',
+    })));
+    [0, total].forEach(r => svg.appendChild(svgEl('line', {
+      x1: PL, y1: yOf(r), x2: W-PR, y2: yOf(r), stroke: 'var(--border)', 'stroke-width': '1',
+    })));
+
+    if (today >= start && today <= end) {
+      svg.appendChild(svgEl('line', {
+        x1: xOf(today), y1: PT, x2: xOf(today), y2: PT+ch,
+        stroke: 'var(--warning,#f59e0b)', 'stroke-width': '1.5', 'stroke-dasharray': '4 3', opacity: '0.8',
+      }));
+    }
+
+    svg.appendChild(svgEl('line', {
+      x1: xOf(start), y1: yOf(total), x2: xOf(end), y2: yOf(0),
+      stroke: 'var(--text-muted)', 'stroke-width': '1.5', 'stroke-dasharray': '5 4', opacity: '0.55',
+    }));
+
+    if (actual.length >= 2) {
+      const fX = xOf(actual[0][0]), lX = xOf(actual[actual.length-1][0]);
+      const pathPts = actual.map(([d,r]) => `${xOf(d)},${yOf(r)}`).join(' L ');
+      svg.appendChild(svgEl('path', {
+        d: `M ${fX},${yOf(actual[0][1])} L ${pathPts.replace(/^[^ ]+ /, '')} L ${lX},${yOf(0)} L ${fX},${yOf(0)} Z`,
+        fill: 'var(--accent)', opacity: '0.09',
+      }));
+      svg.appendChild(svgEl('polyline', {
+        points: actual.map(([d,r]) => `${xOf(d)},${yOf(r)}`).join(' '),
+        fill: 'none', stroke: 'var(--accent)', 'stroke-width': '2',
+        'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      }));
+    }
+
+    if (actual.length > 0) {
+      const [ld, lr] = actual[actual.length-1];
+      svg.appendChild(svgEl('circle', { cx: xOf(ld), cy: yOf(lr), r: '3.5', fill: 'var(--accent)', stroke: 'var(--bg2)', 'stroke-width': '2' }));
+    }
+
+    svg.appendChild(svgTxt(PL-4, yOf(total), total, { 'text-anchor': 'end', 'dominant-baseline': 'middle' }));
+    svg.appendChild(svgTxt(PL-4, yOf(0),     '0',   { 'text-anchor': 'end', 'dominant-baseline': 'middle' }));
+    svg.appendChild(svgTxt(PL,     H-4, fmtDate(start), { 'text-anchor': 'start' }));
+    svg.appendChild(svgTxt(W-PR,   H-4, fmtDate(end),   { 'text-anchor': 'end' }));
+
+    container.appendChild(svg);
+  }
+
+  const PACE_LABEL = {
+    ahead:    { text: 'Por delante', color: 'var(--success,#22c55e)' },
+    on_track: { text: 'Al día',      color: 'var(--warning,#f59e0b)' },
+    behind:   { text: 'Con retraso', color: 'var(--danger,#ef4444)'  },
+    done:     { text: 'Completado',  color: 'var(--success,#22c55e)' },
+  };
+
+  for (const [pk, data] of Object.entries(BD)) {
+    const metaEl  = document.getElementById('bd-meta-'  + pk);
+    const chartEl = document.getElementById('bd-chart-' + pk);
+    if (!metaEl || !chartEl) continue;
+
+    const pl = PACE_LABEL[data.pace] || {};
+    metaEl.innerHTML =
+      `<span class="text-muted text-sm">${data.completed}/${data.total} tareas completadas</span>` +
+      (pl.text ? `<span class="burndown-pace" style="color:${pl.color};">${pl.text}</span>` : '');
+
+    drawBurndown(chartEl, data);
+
+    const legend = document.createElement('div');
+    legend.className = 'burndown-legend';
+    legend.innerHTML =
+      `<span class="bd-legend-item"><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="var(--text-muted)" stroke-width="1.5" stroke-dasharray="4 3"/></svg>Ideal</span>` +
+      `<span class="bd-legend-item"><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="var(--accent)" stroke-width="2"/></svg>Real</span>`;
+    chartEl.appendChild(legend);
+  }
+})();
+</script>
 </div>
 
 <!-- Members Tab -->
@@ -561,6 +876,62 @@
   </div>
 </div>
 {% endif %}
+
+<!-- Board Chat Sidebar -->
+{% if user.is_premium %}
+<div class="bc-overlay" id="bc-overlay" onclick="toggleBoardChat()"></div>
+<div id="board-chat-panel">
+  <div class="bc-header">
+    <span class="bc-title">✨ Board Chat</span>
+    <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleBoardChat()">✕</button>
+  </div>
+  <div class="bc-messages" id="bc-messages">
+    <div class="bc-msg bc-msg-ai">¡Hola! Soy tu asistente de tablero. Pídeme que mueva tareas, asigne personas o cree subtareas.</div>
+  </div>
+  <div class="bc-input-area">
+    <form id="bc-form" onsubmit="submitBoardChat(event)">
+      <div class="bc-input-group">
+        <input type="text" id="bc-input" class="bc-input" placeholder="Ej: Mueve las tareas de revisión de Ana a Completado..." autocomplete="off">
+        <button type="submit" class="bc-send-btn" id="bc-send-btn" title="Enviar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+/* Board Chat CSS */
+#board-chat-panel { position: fixed; top: 0; right: -420px; width: 400px; max-width: 90vw; height: 100vh; background: var(--bg2); border-left: 1px solid var(--border); box-shadow: -4px 0 24px rgba(0,0,0,0.15); z-index: 1000; display: flex; flex-direction: column; transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+#board-chat-panel.open { right: 0; }
+.bc-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(59, 130, 246, 0.08)); }
+.bc-title { font-weight: 700; font-size: 1.15rem; background: linear-gradient(135deg, #8b5cf6, #3b82f6); -webkit-background-clip: text; color: transparent; }
+.bc-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
+.bc-msg { max-width: 88%; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; line-height: 1.45; word-wrap: break-word; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+.bc-msg-user { align-self: flex-end; background: linear-gradient(135deg, #6366f1, #3b82f6); color: white; border-bottom-right-radius: 4px; }
+.bc-msg-ai { align-self: flex-start; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.bc-diff-card { margin-top: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-family: var(--font-sans); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.bc-diff-header { padding: 10px 14px; background: var(--bg3); font-size: 0.85rem; font-weight: 600; border-bottom: 1px solid var(--border); color: var(--text); display: flex; align-items: center; gap: 6px; }
+.bc-diff-body { padding: 12px 14px; font-size: 0.85rem; max-height: 250px; overflow-y: auto; }
+.bc-diff-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.bc-diff-item:last-child { margin-bottom: 0; }
+.bc-diff-badge { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; flex-shrink: 0; }
+.bc-diff-badge.update_status { background: rgba(59,130,246,0.15); color: #3b82f6; }
+.bc-diff-badge.create_task { background: rgba(34,197,94,0.15); color: #22c55e; }
+.bc-actions { padding: 12px 14px; border-top: 1px solid var(--border); background: var(--bg2); text-align: right; }
+.bc-input-area { padding: 16px 20px; border-top: 1px solid var(--border); background: var(--bg2); }
+.bc-input-group { display: flex; gap: 10px; align-items: center; }
+.bc-input { flex: 1; padding: 12px 16px; border: 1px solid var(--border); border-radius: 24px; background: var(--bg); color: var(--text); outline: none; font-size: 0.95rem; transition: border-color 0.2s, box-shadow 0.2s; }
+.bc-input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,0.15); }
+.bc-send-btn { width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.15s, box-shadow 0.15s; }
+.bc-send-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
+.bc-send-btn:active { transform: translateY(1px); }
+.bc-send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.bc-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.3); backdrop-filter: blur(2px); z-index: 999; display: none; opacity: 0; transition: opacity 0.3s; }
+.bc-overlay.open { display: block; opacity: 1; }
+.ai-spinner-inline { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; }
+</style>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -581,8 +952,14 @@ function openEditMember(memberPk, name, currentRole) {
 
 // ─── Board filters ────────────────────────────────────────────────────────────
 (function () {
-  const state = { assignee: '', sprint: '', priorities: new Set(), tags: new Set() };
+  const state = { search: '', assignee: '', sprint: '', priorities: new Set(), tags: new Set() };
   const clearBtn = document.getElementById('filter-clear');
+
+  // ── search input ──
+  document.getElementById('search-input').addEventListener('input', e => {
+    state.search = e.target.value.toLowerCase().trim();
+    apply();
+  });
 
   // ── abrir/cerrar dropdowns ──
   document.querySelectorAll('.flt-drop').forEach(drop => {
@@ -655,8 +1032,9 @@ function openEditMember(memberPk, name, currentRole) {
 
   // ── limpiar ──
   if (clearBtn) clearBtn.addEventListener('click', () => {
-    state.assignee = ''; state.sprint = '';
+    state.search = ''; state.assignee = ''; state.sprint = '';
     state.priorities.clear(); state.tags.clear();
+    document.getElementById('search-input').value = '';
     document.querySelectorAll('.flt-opt.selected').forEach(o => o.classList.remove('selected'));
     // restaurar "Todos" como selected en selects simples
     document.querySelector('#menu-assignee .flt-opt[data-value=""]')?.classList.add('selected');
@@ -673,28 +1051,36 @@ function openEditMember(memberPk, name, currentRole) {
 
   // ── filtrado ──
   function apply() {
+    const hasSearch   = !!state.search;
     const hasAssignee = !!state.assignee;
     const hasSprint   = !!state.sprint;
     const hasPriority = state.priorities.size > 0;
     const hasTags     = state.tags.size > 0;
-    const anyActive   = hasAssignee || hasSprint || hasPriority || hasTags;
+    const anyActive   = hasSearch || hasAssignee || hasSprint || hasPriority || hasTags;
 
-    document.querySelectorAll('.task-card').forEach(card => {
+    document.querySelectorAll('.task-card, #tab-list tbody tr').forEach(item => {
       let ok = true;
-      if (hasAssignee) {
+      if (hasSearch) {
+        const titleEl = item.classList.contains('task-card') 
+          ? item.querySelector('.task-card-title') 
+          : item.querySelector('td:nth-child(2)');
+        const title = titleEl?.textContent.toLowerCase() || '';
+        if (!title.includes(state.search)) ok = false;
+      }
+      if (ok && hasAssignee) {
         const want = state.assignee === '__none__' ? '' : state.assignee;
-        if ((card.dataset.assignee || '').trim() !== want) ok = false;
+        if ((item.dataset.assignee || '').trim() !== want) ok = false;
       }
       if (ok && hasSprint) {
         const want = state.sprint === '__none__' ? '' : state.sprint;
-        if ((card.dataset.sprint || '').trim() !== want) ok = false;
+        if ((item.dataset.sprint || '').trim() !== want) ok = false;
       }
-      if (ok && hasPriority && !state.priorities.has(card.dataset.priority)) ok = false;
+      if (ok && hasPriority && !state.priorities.has(item.dataset.priority)) ok = false;
       if (ok && hasTags) {
-        const cardTags = (card.dataset.tags || '').split(',').map(s => s.trim()).filter(Boolean);
-        if (!cardTags.some(t => state.tags.has(t))) ok = false;
+        const itemTags = (item.dataset.tags || '').split(',').map(s => s.trim()).filter(Boolean);
+        if (!itemTags.some(t => state.tags.has(t))) ok = false;
       }
-      card.style.display = ok ? '' : 'none';
+      item.style.display = ok ? '' : 'none';
     });
 
     document.querySelectorAll('.board-col').forEach(col => {
@@ -710,108 +1096,206 @@ function openEditMember(memberPk, name, currentRole) {
   }
 })();
 
-// ─── List tab: sortable + paginated ──────────────────────────────────────────
+// ─── Filter option counts (ANA-03) ───────────────────────────────────────────
 (function () {
-  const tabEl   = document.getElementById('tab-list');
-  if (!tabEl) return;
-  const baseUrl = tabEl.dataset.listUrl;
-  const tbody   = document.getElementById('list-tbody');
-  const pagEl   = document.getElementById('list-pagination');
-  let state = { sort: 'created_at', order: 'desc', page: 1, loaded: false };
+  const ASSIGNEE_DIST = {{ assignee_dist_json|safe }};
 
-  // load on first tab show (detected via style mutation)
-  new MutationObserver(() => {
-    if (tabEl.style.display !== 'none' && !state.loaded) load();
-  }).observe(tabEl, { attributes: true, attributeFilter: ['style'] });
+  function addBadge(opt, n) {
+    if (!n) return;
+    const b = document.createElement('span');
+    b.className = 'flt-opt-count';
+    b.textContent = n;
+    opt.appendChild(b);
+  }
 
-  // column header clicks
-  document.querySelectorAll('.th-sort').forEach(th => {
-    th.style.cursor = 'pointer';
-    th.addEventListener('click', () => {
-      const col = th.dataset.col;
-      state.order = (state.sort === col && state.order === 'asc') ? 'desc' : 'asc';
-      if (state.sort !== col) { state.sort = col; state.order = 'asc'; }
-      state.page = 1;
-      load();
-    });
+  // Assignee — counts from server data
+  const byAssignee = {};
+  ASSIGNEE_DIST.forEach(({ id, count }) => { byAssignee[id || '__none__'] = count; });
+  document.querySelectorAll('#menu-assignee .flt-opt[data-value]').forEach(opt => {
+    const v = opt.dataset.value;
+    if (v) addBadge(opt, byAssignee[v] || 0);
   });
 
-  function load() {
-    state.loaded = true;
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">Cargando…</td></tr>`;
-    pagEl.innerHTML = '';
-    fetch(`${baseUrl}?sort=${state.sort}&order=${state.order}&page=${state.page}`, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-      .then(r => r.json())
-      .then(render)
-      .catch(() => {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--danger);">Error al cargar tareas.</td></tr>`;
-      });
-  }
+  // Priority, sprint, tag — counts from rendered task cards
+  document.querySelectorAll('#menu-priority .flt-opt[data-value]').forEach(opt => {
+    addBadge(opt, document.querySelectorAll(`.task-card[data-priority="${opt.dataset.value}"]`).length);
+  });
 
-  function render(data) {
-    // sort indicators
-    document.querySelectorAll('.th-sort').forEach(th => {
-      const active = th.dataset.col === data.sort;
-      th.classList.toggle('th-active', active);
-      th.querySelector('.sort-icon').textContent = active ? (data.order === 'asc' ? ' ↑' : ' ↓') : '';
-    });
+  document.querySelectorAll('#menu-sprint .flt-opt[data-value]').forEach(opt => {
+    const v = opt.dataset.value;
+    if (!v) return;
+    const sel = v === '__none__' ? '.task-card[data-sprint=""]' : `.task-card[data-sprint="${v}"]`;
+    addBadge(opt, document.querySelectorAll(sel).length);
+  });
 
-    if (!data.tasks.length) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:48px;color:var(--text-muted);">Sin tareas en este proyecto.</td></tr>`;
-      pagEl.innerHTML = '';
-      return;
-    }
-
-    tbody.innerHTML = data.tasks.map(t => `
-      <tr style="cursor:pointer;" onclick="window.location='${t.url}'">
-        <td><span style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-muted);">${esc(t.key)}</span></td>
-        <td style="font-weight:500;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.title)}</td>
-        <td><span class="badge badge-${t.type}">${esc(t.type_display)}</span></td>
-        <td><span class="badge badge-${t.status}">${esc(t.status_display)}</span></td>
-        <td><span class="badge badge-${t.priority}">${esc(t.priority_display)}</span></td>
-        <td>${t.assignee_name
-          ? `<div style="display:flex;align-items:center;gap:6px;"><div class="avatar avatar-sm">${esc(t.assignee_initials)}</div><span class="text-sm">${esc(t.assignee_name)}</span></div>`
-          : '<span class="text-muted text-sm">—</span>'}
-        </td>
-        <td class="${t.is_overdue ? 'text-danger' : 'text-muted'} text-sm">${t.due_date || '—'}</td>
-      </tr>`).join('');
-
-    renderPagination(data);
-  }
-
-  function renderPagination(data) {
-    if (data.pages <= 1) { pagEl.innerHTML = ''; return; }
-    const from = (data.page - 1) * data.per_page + 1;
-    const to   = Math.min(data.page * data.per_page, data.total);
-    let html = `<span class="text-muted text-sm">${from}–${to} de ${data.total} tareas</span><div style="display:flex;gap:4px;">`;
-    html += `<button class="btn btn-ghost btn-sm pag-btn" data-page="${data.page - 1}" ${data.page <= 1 ? 'disabled' : ''}>‹</button>`;
-    pageRange(data.page, data.pages).forEach(p => {
-      html += p === '…'
-        ? `<span style="padding:5px 6px;color:var(--text-muted);align-self:center;">…</span>`
-        : `<button class="btn btn-ghost btn-sm pag-btn${p === data.page ? ' pag-active' : ''}" data-page="${p}">${p}</button>`;
-    });
-    html += `<button class="btn btn-ghost btn-sm pag-btn" data-page="${data.page + 1}" ${data.page >= data.pages ? 'disabled' : ''}>›</button></div>`;
-    pagEl.innerHTML = html;
-    pagEl.querySelectorAll('.pag-btn:not([disabled])').forEach(btn => {
-      btn.addEventListener('click', () => { state.page = +btn.dataset.page; load(); });
-    });
-  }
-
-  function pageRange(cur, total) {
-    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-    const r = [1];
-    if (cur > 3) r.push('…');
-    for (let p = Math.max(2, cur - 1); p <= Math.min(total - 1, cur + 1); p++) r.push(p);
-    if (cur < total - 2) r.push('…');
-    r.push(total);
-    return r;
-  }
-
-  function esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
+  document.querySelectorAll('#menu-tag .flt-opt[data-value]').forEach(opt => {
+    const v = opt.dataset.value;
+    if (!v) return;
+    const n = Array.from(document.querySelectorAll('.task-card'))
+      .filter(c => (c.dataset.tags || '').split(',').includes(v)).length;
+    addBadge(opt, n);
+  });
 })();
+
+// ─── Board Chat ──────────────────────────────────────────────────────────────
+let currentBoardActions = [];
+
+function toggleBoardChat() {
+  const panel = document.getElementById('board-chat-panel');
+  const overlay = document.getElementById('bc-overlay');
+  if (!panel) return;
+  
+  if (panel.classList.contains('open')) {
+    panel.classList.remove('open');
+    overlay.classList.remove('open');
+  } else {
+    panel.classList.add('open');
+    overlay.classList.add('open');
+    setTimeout(() => document.getElementById('bc-input').focus(), 300);
+  }
+}
+
+function appendChatMessage(sender, text, isHtml = false) {
+  const container = document.getElementById('bc-messages');
+  const msgDiv = document.createElement('div');
+  msgDiv.className = `bc-msg bc-msg-${sender}`;
+  if (isHtml) {
+    msgDiv.innerHTML = text;
+  } else {
+    msgDiv.textContent = text;
+  }
+  container.appendChild(msgDiv);
+  container.scrollTop = container.scrollHeight;
+  return msgDiv;
+}
+
+function renderDiffCard(actions) {
+  if (!actions || actions.length === 0) return '';
+  
+  let html = `<div class="bc-diff-card">
+    <div class="bc-diff-header"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg> Cambios propuestos (${actions.length})</div>
+    <div class="bc-diff-body">`;
+    
+  actions.forEach(act => {
+    if (act.action === 'update_status') {
+      const card = document.querySelector(`.task-card[data-task-id="${act.task_id}"]`);
+      const title = card ? card.querySelector('.task-card-title').textContent : `Tarea ${act.task_id.substring(0,8)}`;
+      html += `<div class="bc-diff-item">
+        <span class="bc-diff-badge update_status">Mover</span>
+        <span>"${title}" &rarr; <strong>${act.new_status}</strong></span>
+      </div>`;
+    } else if (act.action === 'create_task') {
+      html += `<div class="bc-diff-item">
+        <span class="bc-diff-badge create_task">Crear</span>
+        <span>"${act.title}" en <strong>${act.status}</strong></span>
+      </div>`;
+    } else if (act.action === 'edit_task') {
+      const card = document.querySelector(`.task-card[data-task-id="${act.task_id}"]`);
+      const title = card ? card.querySelector('.task-card-title').textContent : `Tarea ${act.task_id.substring(0,8)}`;
+      let changes = [];
+      if (act.title) changes.push('título');
+      if (act.priority) changes.push('prioridad');
+      if (act.assignee_id !== undefined) changes.push('asignado');
+      if (act.description !== undefined) changes.push('descripción');
+      html += `<div class="bc-diff-item">
+        <span class="bc-diff-badge update_status" style="background: rgba(245,158,11,0.15); color: #f59e0b;">Editar</span>
+        <span>"${title}" &rarr; <strong>${changes.join(', ')}</strong></span>
+      </div>`;
+    }
+  });
+  
+  html += `</div>
+    <div class="bc-actions">
+      <button class="btn btn-primary btn-sm" onclick="applyBoardChatActions(this)" style="width:100%; background: linear-gradient(135deg, #8b5cf6, #3b82f6); border: none; font-weight: 600;">Aprobar y aplicar</button>
+    </div>
+  </div>`;
+  
+  return html;
+}
+
+async function submitBoardChat(e) {
+  e.preventDefault();
+  const input = document.getElementById('bc-input');
+  const btn = document.getElementById('bc-send-btn');
+  const message = input.value.trim();
+  if (!message) return;
+  
+  input.value = '';
+  input.disabled = true;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="ai-spinner-inline"></span>';
+  
+  appendChatMessage('user', message);
+  
+  try {
+    const res = await fetch(`/projects/{{ project.pk }}/board-chat/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}'
+      },
+      body: JSON.stringify({ message })
+    });
+    
+    const data = await res.json();
+    
+    if (data.error) {
+      appendChatMessage('ai', `Error: ${data.error}`);
+    } else {
+      let aiText = data.message || "Aquí tienes mi propuesta:";
+      if (data.actions && data.actions.length > 0) {
+        currentBoardActions = data.actions;
+        aiText += renderDiffCard(data.actions);
+      } else {
+        currentBoardActions = [];
+      }
+      appendChatMessage('ai', aiText, true);
+    }
+  } catch (err) {
+    console.error(err);
+    appendChatMessage('ai', 'Ocurrió un error al conectar con el asistente.');
+  } finally {
+    input.disabled = false;
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>';
+    setTimeout(() => input.focus(), 10);
+  }
+}
+
+async function applyBoardChatActions(btnEl) {
+  if (!currentBoardActions.length) return;
+  
+  btnEl.disabled = true;
+  btnEl.innerHTML = '<span class="ai-spinner-inline" style="margin-right:8px;vertical-align:middle;"></span> Aplicando...';
+  
+  try {
+    const res = await fetch(`/projects/{{ project.pk }}/board-chat/apply/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}'
+      },
+      body: JSON.stringify({ actions: currentBoardActions })
+    });
+    
+    const data = await res.json();
+    if (data.error) {
+      alert(`Error: ${data.error}`);
+      btnEl.innerHTML = 'Reintentar';
+      btnEl.disabled = false;
+    } else {
+      btnEl.innerHTML = '¡Aplicado!';
+      btnEl.style.background = '#22c55e';
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Error al aplicar cambios.');
+    btnEl.innerHTML = 'Reintentar';
+    btnEl.disabled = false;
+  }
+}
 </script>
 {% endblock %}

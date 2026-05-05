@@ -4,6 +4,11 @@ from django.conf import settings
 from django.utils import timezone
 
 
+class ActiveManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
 class Project(models.Model):
     STATUS_CHOICES = [
         ('planning', 'Planificación'),
@@ -32,7 +37,10 @@ class Project(models.Model):
     hour_budget = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    objects = ActiveManager()
+    all_objects = models.Manager()
 
     class Meta:
         db_table = 'project'

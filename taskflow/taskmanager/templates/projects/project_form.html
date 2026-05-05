@@ -7,9 +7,18 @@
 {% endblock %}
 
 {% block content %}
-<div style="max-width:640px;">
+<div style="max-width:720px;margin:40px auto 0;">
   <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:20px;">{{ title }}</h2>
-  <div class="card">
+
+  {% if not project and user.is_premium %}
+  <div class="ai-tabs" id="ai-tabs">
+    <button class="ai-tab active" data-tab="classic" onclick="switchTab('classic')">📋 Formulario clásico</button>
+    <button class="ai-tab" data-tab="ai" onclick="switchTab('ai')">✨ Crear con IA</button>
+  </div>
+  {% endif %}
+
+  {# ── CLASSIC FORM ── #}
+  <div class="card" id="tab-classic">
     <form method="post">
       {% csrf_token %}
       {% if not project %}
@@ -84,5 +93,288 @@
       </div>
     </form>
   </div>
+
+  {# ── AI PANEL (premium only, create mode only) ── #}
+  {% if not project and user.is_premium %}
+  <div class="card" id="tab-ai" style="display:none;">
+
+    {# Step 1: Describe #}
+    <div id="ai-step1">
+      <div class="form-group">
+        <label class="form-label">Organización *</label>
+        <select id="ai-org" class="form-control" required>
+          <option value="">Selecciona una organización</option>
+          {% for mem in user_orgs %}
+          <option value="{{ mem.organization.pk }}">{{ mem.organization.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-top:16px;">
+        <label class="form-label">Describe tu proyecto</label>
+        <textarea id="ai-description" class="form-control" rows="6" maxlength="5000"
+          placeholder="Ej: Necesito un proyecto para rediseñar la web corporativa. Es urgente, empezamos el 5 de mayo y tiene que estar listo para el 30 de junio. Necesitamos tareas de diseño UX, desarrollo frontend, backend y testing."></textarea>
+        <div style="text-align:right;font-size:.75rem;color:var(--text-muted);margin-top:4px;">
+          <span id="ai-charcount">0</span>/5000
+        </div>
+      </div>
+
+      <div class="form-actions" style="flex-direction:column;gap:10px;">
+        <div id="ai-error" style="display:none;padding:10px 14px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;font-size:.85rem;font-weight:500;width:100%;text-align:center;"></div>
+        <button type="button" class="btn btn-primary" id="ai-generate-btn" onclick="aiGenerate()">
+          <span id="ai-btn-text">✨ Generar proyecto</span>
+          <span id="ai-btn-loading" style="display:none;">
+            <span class="ai-spinner"></span> Analizando...
+          </span>
+        </button>
+      </div>
+    </div>
+
+    {# Step 2: Preview & confirm #}
+    <div id="ai-step2" style="display:none;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+        <span style="font-size:1.3rem;">✨</span>
+        <h3 style="margin:0;font-size:1rem;font-weight:700;">Proyecto generado por IA</h3>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="aiBack()" style="margin-left:auto;">← Volver</button>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Nombre *</label>
+          <input type="text" id="ai-name" class="form-control" required></div>
+        <div class="form-group"><label class="form-label">Clave *</label>
+          <input type="text" id="ai-key" class="form-control" maxlength="10" required></div>
+      </div>
+
+      <div class="form-group"><label class="form-label">Descripción</label>
+        <textarea id="ai-desc" class="form-control" rows="3"></textarea></div>
+
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Estado</label>
+          <select id="ai-status" class="form-control">
+            {% for value, label in status_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="form-group"><label class="form-label">Prioridad</label>
+          <select id="ai-priority" class="form-control">
+            {% for value, label in priority_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select></div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Fecha inicio</label>
+          <input type="date" id="ai-start" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Fecha límite</label>
+          <input type="date" id="ai-due" class="form-control"></div>
+      </div>
+
+      <div class="form-group"><label class="form-label">Bolsa de horas</label>
+        <input type="number" id="ai-hours" class="form-control" min="0" step="0.25"></div>
+
+      {# Task list #}
+      <div id="ai-tasks-section" style="margin-top:20px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <label class="form-label" style="margin:0;font-weight:700;">Tareas sugeridas</label>
+          <span id="ai-task-count" class="badge" style="font-size:.7rem;"></span>
+        </div>
+        <div id="ai-tasks-list"></div>
+      </div>
+
+      <div id="ai-confirm-error" style="display:none;padding:10px 14px;border-radius:8px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;font-size:.85rem;font-weight:500;width:100%;text-align:center;margin:12px 0;"></div>
+
+      <div class="form-actions" style="margin-top:20px;">
+        <button type="button" class="btn btn-secondary" onclick="aiBack()">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="ai-confirm-btn" onclick="aiConfirm()">
+          <span id="ai-confirm-text">🚀 Crear proyecto</span>
+          <span id="ai-confirm-loading" style="display:none;">
+            <span class="ai-spinner"></span> Creando...
+          </span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.ai-tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--card-bg);border-radius:10px;padding:4px;border:1px solid var(--border)}
+.ai-tab{flex:1;padding:10px 16px;border:none;border-radius:8px;background:transparent;color:var(--text-muted);font-weight:600;font-size:.85rem;cursor:pointer;transition:all .2s}
+.ai-tab:hover{color:var(--text);background:var(--bg-hover,rgba(255,255,255,.04))}
+.ai-tab.active{background:var(--primary);color:#fff;box-shadow:0 2px 8px rgba(var(--primary-rgb),.3)}
+.ai-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:aispin .6s linear infinite;vertical-align:middle}
+@keyframes aispin{to{transform:rotate(360deg)}}
+.ai-task-card{background:var(--bg-hover,rgba(255,255,255,.03));border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px;transition:opacity .2s}
+.ai-task-card.removed{opacity:.3;text-decoration:line-through}
+.ai-task-info{flex:1;min-width:0}
+.ai-task-title{font-weight:600;font-size:.85rem;margin-bottom:2px}
+.ai-task-meta{font-size:.72rem;color:var(--text-muted);display:flex;gap:8px;flex-wrap:wrap}
+.ai-task-remove{background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;font-size:.85rem;line-height:1;border-radius:4px;transition:color .15s}
+.ai-task-remove:hover{color:var(--danger)}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:600;background:var(--primary);color:#fff}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{% if not project and user.is_premium %}
+<script>
+const CSRF='{{ csrf_token }}';
+let aiData=null;
+
+function switchTab(tab){
+  document.querySelectorAll('.ai-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  document.getElementById('tab-classic').style.display=tab==='classic'?'':'none';
+  document.getElementById('tab-ai').style.display=tab==='ai'?'':'none';
+}
+
+document.getElementById('ai-description').addEventListener('input',function(){
+  document.getElementById('ai-charcount').textContent=this.value.length;
+});
+
+function aiShowError(id,msg){const el=document.getElementById(id);el.textContent=msg;el.style.display='block';}
+function aiHideError(id){document.getElementById(id).style.display='none';}
+
+function aiGenerate(){
+  const org=document.getElementById('ai-org').value;
+  if(!org){aiShowError('ai-error','Selecciona una organización primero.');return;}
+  const desc=document.getElementById('ai-description').value.trim();
+  if(!desc){aiShowError('ai-error','Escribe una descripción de tu proyecto.');return;}
+  if(desc.length<20){aiShowError('ai-error','La descripción es muy corta. Añade más detalles.');return;}
+
+  aiHideError('ai-error');
+  const btn=document.getElementById('ai-generate-btn');
+  btn.disabled=true;
+  document.getElementById('ai-btn-text').style.display='none';
+  document.getElementById('ai-btn-loading').style.display='';
+
+  fetch('{% url "project_create_ai" %}',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body:JSON.stringify({description:desc})
+  })
+  .then(r=>r.json().then(d=>({ok:r.ok,data:d})))
+  .then(({ok,data})=>{
+    btn.disabled=false;
+    document.getElementById('ai-btn-text').style.display='';
+    document.getElementById('ai-btn-loading').style.display='none';
+    if(!ok||data.error){aiShowError('ai-error',data.error||'Error desconocido.');return;}
+    aiData=data.data;
+    aiPopulatePreview(aiData);
+    document.getElementById('ai-step1').style.display='none';
+    document.getElementById('ai-step2').style.display='';
+  })
+  .catch(e=>{
+    btn.disabled=false;
+    document.getElementById('ai-btn-text').style.display='';
+    document.getElementById('ai-btn-loading').style.display='none';
+    aiShowError('ai-error','Error de conexión. Inténtalo de nuevo.');
+  });
+}
+
+function aiPopulatePreview(d){
+  document.getElementById('ai-name').value=d.name||'';
+  document.getElementById('ai-key').value=d.key||'';
+  document.getElementById('ai-desc').value=d.description||'';
+  document.getElementById('ai-status').value=d.status||'planning';
+  document.getElementById('ai-priority').value=d.priority||'medium';
+  document.getElementById('ai-start').value=d.start_date||'';
+  document.getElementById('ai-due').value=d.due_date||'';
+  document.getElementById('ai-hours').value=d.hour_budget||'';
+
+  const list=document.getElementById('ai-tasks-list');
+  list.innerHTML='';
+  const tasks=d.tasks||[];
+  document.getElementById('ai-task-count').textContent=tasks.length+' tareas';
+  const typeLabels={task:'Tarea',bug:'Bug',story:'Historia',epic:'Épica',subtask:'Subtarea'};
+  const prioLabels={low:'Baja',medium:'Media',high:'Alta',critical:'Crítica'};
+  tasks.forEach((t,i)=>{
+    const card=document.createElement('div');
+    card.className='ai-task-card';
+    card.dataset.index=i;
+    card.innerHTML=`<div class="ai-task-info">
+      <div class="ai-task-title">${esc(t.title)}</div>
+      <div class="ai-task-meta">
+        <span>${typeLabels[t.type]||t.type}</span>
+        <span>Prioridad: ${prioLabels[t.priority]||t.priority}</span>
+        ${t.estimated_hours?`<span>${t.estimated_hours}h</span>`:''}
+      </div>
+      ${t.description?`<div style="font-size:.78rem;color:var(--text-muted);margin-top:4px;">${esc(t.description).substring(0,120)}</div>`:''}
+    </div>
+    <button type="button" class="ai-task-remove" onclick="aiToggleTask(this)" title="Quitar tarea">✕</button>`;
+    list.appendChild(card);
+  });
+}
+
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+function aiToggleTask(btn){
+  const card=btn.closest('.ai-task-card');
+  card.classList.toggle('removed');
+  btn.textContent=card.classList.contains('removed')?'↩':'✕';
+  btn.title=card.classList.contains('removed')?'Restaurar tarea':'Quitar tarea';
+  const active=document.querySelectorAll('.ai-task-card:not(.removed)').length;
+  document.getElementById('ai-task-count').textContent=active+' tareas';
+}
+
+function aiBack(){
+  document.getElementById('ai-step2').style.display='none';
+  document.getElementById('ai-step1').style.display='';
+  aiHideError('ai-confirm-error');
+}
+
+function aiConfirm(){
+  aiHideError('ai-confirm-error');
+  const tasks=[];
+  document.querySelectorAll('.ai-task-card:not(.removed)').forEach((card,i)=>{
+    const idx=parseInt(card.dataset.index);
+    const t=aiData.tasks[idx];
+    if(t)tasks.push(t);
+  });
+
+  const payload={
+    organization:document.getElementById('ai-org').value,
+    name:document.getElementById('ai-name').value.trim(),
+    key:document.getElementById('ai-key').value.trim(),
+    description:document.getElementById('ai-desc').value,
+    status:document.getElementById('ai-status').value,
+    priority:document.getElementById('ai-priority').value,
+    start_date:document.getElementById('ai-start').value||null,
+    due_date:document.getElementById('ai-due').value||null,
+    hour_budget:parseFloat(document.getElementById('ai-hours').value)||null,
+    tasks:tasks
+  };
+
+  if(!payload.name||!payload.key){aiShowError('ai-confirm-error','Nombre y clave son obligatorios.');return;}
+
+  const btn=document.getElementById('ai-confirm-btn');
+  btn.disabled=true;
+  document.getElementById('ai-confirm-text').style.display='none';
+  document.getElementById('ai-confirm-loading').style.display='';
+
+  fetch('{% url "project_create_ai_confirm" %}',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body:JSON.stringify(payload)
+  })
+  .then(r=>r.json().then(d=>({ok:r.ok,data:d})))
+  .then(({ok,data})=>{
+    btn.disabled=false;
+    document.getElementById('ai-confirm-text').style.display='';
+    document.getElementById('ai-confirm-loading').style.display='none';
+    if(!ok||data.error){aiShowError('ai-confirm-error',data.error);return;}
+    window.location.href=data.redirect;
+  })
+  .catch(e=>{
+    btn.disabled=false;
+    document.getElementById('ai-confirm-text').style.display='';
+    document.getElementById('ai-confirm-loading').style.display='none';
+    aiShowError('ai-confirm-error','Error de conexión.');
+  });
+}
+</script>
+{% endif %}
 {% endblock %}
