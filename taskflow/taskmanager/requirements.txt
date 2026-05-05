@@ -48,3 +48,6 @@ urllib3==2.6.3
 websockets==16.0
 whitenoise==6.6.0
 zensical==0.0.37
+djangorestframework>=3.15.0
+djangorestframework-simplejwt>=5.3.0
+django-ratelimit>=4.1.0

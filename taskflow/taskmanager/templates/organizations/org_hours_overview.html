@@ -172,10 +172,10 @@ Resumen de horas
         {% for row in per_member %}
         <tr style="cursor:pointer;" onclick="toggleBreakdown('{{ row.uid }}')">
           <td>
-            <a href="{% url 'user_profile' row.uid %}" style="display:flex;align-items:center;gap:8px;color:var(--text);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+            <div style="display:flex;align-items:center;gap:8px;">
               <div class="avatar avatar-sm">{{ row.name|slice:":1"|upper }}</div>
               {{ row.name }}
-            </a>
+            </div>
           </td>
           <td style="text-align:right;font-weight:600;">{{ row.logged }}h</td>
           {% if total_consumed %}

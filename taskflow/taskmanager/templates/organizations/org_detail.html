@@ -4,7 +4,6 @@
 {% block topbar_actions %}
   {% if membership.role in 'owner,admin' %}
   <a href="{% url 'org_hours_overview' org.pk %}" class="btn btn-ghost btn-sm">Horas</a>
-  <a href="{% url 'org_edit' org.pk %}" class="btn btn-ghost btn-sm">Editar Org</a>
   <button class="btn btn-secondary btn-sm" onclick="openModal('invite-modal')">+ Invitar miembro</button>
   {% endif %}
   <a href="{% url 'project_create' %}" class="btn btn-primary btn-sm">+ Nuevo proyecto</a>
@@ -28,30 +27,26 @@
     <div class="card-header">
       <span class="card-title">Proyectos ({{ projects|length }})</span>
     </div>
+    {% if projects %}
     <div style="display:flex;flex-direction:column;gap:8px;">
       {% for project in projects %}
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg3);border-radius:var(--radius-sm);border:1px solid var(--border);">
-        <a href="{% url 'project_detail' project.pk %}" style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;text-decoration:none;">
-          <span style="font-family:var(--font-mono);font-size:0.72rem;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:4px;flex-shrink:0;">{{ project.key }}</span>
-          <span style="font-size:0.875rem;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ project.name }}</span>
-        </a>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+      <a href="{% url 'project_detail' project.pk %}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:var(--radius-sm);border:1px solid var(--border);text-decoration:none;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-family:var(--font-mono);font-size:0.72rem;background:var(--accent-light);color:var(--accent);padding:2px 6px;border-radius:4px;">{{ project.key }}</span>
+          <span style="font-size:0.875rem;font-weight:500;color:var(--text);">{{ project.name }}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
           <span class="badge badge-{{ project.priority }}">{{ project.get_priority_display }}</span>
           <span class="badge badge-{{ project.status }}">{{ project.get_status_display }}</span>
-          {% if membership.role in 'owner,admin' %}
-          <button class="btn btn-ghost btn-sm btn-icon" title="Renombrar proyecto"
-            onclick="openRenameProject('{{ project.pk }}', '{{ project.name|escapejs }}')">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          {% endif %}
         </div>
-      </div>
-      {% empty %}
-      <div class="empty-state" style="padding:24px;">
-        <p>Sin proyectos aún.</p>
-      </div>
+      </a>
       {% endfor %}
     </div>
+    {% else %}
+    <div class="empty-state" style="padding:24px;">
+      <p>Sin proyectos aún.</p>
+    </div>
+    {% endif %}
   </div>
 
   <!-- Members -->
@@ -62,15 +57,12 @@
     <div style="display:flex;flex-direction:column;gap:8px;">
       {% for mem in members %}
       <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg3);border-radius:var(--radius-sm);">
-        <div class="avatar-wrapper">
-          <div class="avatar avatar-sm">
-            {% if mem.user.avatar %}<img src="{{ mem.user.avatar.url }}" alt="">{% else %}{{ mem.user.get_initials }}{% endif %}
-          </div>
-          <span class="status-dot {{ mem.user.get_online_status }}" style="width:8px;height:8px;"></span>
+        <div class="avatar avatar-sm">
+          {% if mem.user.avatar %}<img src="{{ mem.user.avatar.url }}" alt="">{% else %}{{ mem.user.get_initials }}{% endif %}
         </div>
         <div style="flex:1;min-width:0;">
-          <a href="{% url 'user_profile' mem.user.pk %}" style="font-size:0.875rem;font-weight:500;color:var(--text);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ mem.user.name }}</a>
-          {% if mem.user.company_role %}<div class="text-muted text-sm truncate">{{ mem.user.company_role }}</div>{% else %}<div class="text-muted text-sm truncate">{{ mem.user.email }}</div>{% endif %}
+          <div style="font-size:0.875rem;font-weight:500;">{{ mem.user.name }}</div>
+          <div class="text-muted text-sm truncate">{{ mem.user.email }}</div>
         </div>
         <span class="badge badge-{{ mem.role }}">{{ mem.get_role_display }}</span>
         {% if membership.role in 'owner,admin' and mem.user != user %}
@@ -148,46 +140,12 @@
     </form>
   </div>
 </div>
-
-<!-- Rename project modal -->
-<div class="modal-overlay" id="rename-project-modal">
-  <div class="modal" style="max-width:400px;">
-    <div class="modal-header">
-      <span class="modal-title">Renombrar proyecto</span>
-      <button class="btn btn-ghost btn-sm btn-icon" onclick="closeModal('rename-project-modal')">✕</button>
-    </div>
-    <form method="post" id="rename-project-form">
-      {% csrf_token %}
-      <div class="modal-body">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label">Nuevo nombre *</label>
-          <input type="text" name="name" id="rename-project-input" class="form-control" required>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="closeModal('rename-project-modal')">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Renombrar</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <script>
 function openEditRole(memberPk, name, currentRole) {
   document.getElementById('edit-role-name').textContent = name;
   document.getElementById('edit-role-select').value = currentRole;
   document.getElementById('edit-role-form').action = '/organizations/{{ org.pk }}/members/' + memberPk + '/role/';
   openModal('edit-role-modal');
-}
-function openRenameProject(projectPk, currentName) {
-  document.getElementById('rename-project-input').value = currentName;
-  document.getElementById('rename-project-form').action = '/organizations/{{ org.pk }}/projects/' + projectPk + '/rename/';
-  openModal('rename-project-modal');
-  setTimeout(() => {
-    const input = document.getElementById('rename-project-input');
-    input.focus();
-    input.select();
-  }, 50);
 }
 </script>
 {% endif %}

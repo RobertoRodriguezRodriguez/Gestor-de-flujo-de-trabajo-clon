@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-<div style="max-width:720px;margin:40px auto 0;">
+<div style="max-width:720px;">
   <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:20px;">{{ title }}</h2>
   <div class="card">
     <form method="post">
@@ -48,7 +48,7 @@
 
       <div class="form-group">
         <label class="form-label">Descripción</label>
-        <textarea name="description" class="form-control" data-md-editor="true" rows="4" placeholder="Contexto, criterios de aceptación, notas...">{{ task.description|default:'' }}</textarea>
+        <textarea name="description" class="form-control" rows="4" placeholder="Contexto, criterios de aceptación, notas...">{{ task.description|default:'' }}</textarea>
       </div>
 
       <div class="form-row">
@@ -84,20 +84,18 @@
         <div class="form-group">
           <label class="form-label">Horas estimadas</label>
           <div style="display:flex;gap:6px;align-items:center;">
-            <input type="number" name="estimated_h" id="est-h" class="form-control" placeholder="0"
-              min="0" style="width:72px;text-align:center;"
-              value="{{ est_h|default:0 }}">
+            <input type="number" name="estimated_h" class="form-control" placeholder="0" min="0"
+                   style="width:72px;text-align:center;" value="{{ est_h|default:0 }}">
             <span style="color:var(--text-muted);font-size:0.85rem;flex-shrink:0;">h</span>
-            <input type="number" name="estimated_m" id="est-m" class="form-control" placeholder="0"
-              min="0" max="59" style="width:72px;text-align:center;"
-              value="{{ est_m|default:0 }}">
+            <input type="number" name="estimated_m" class="form-control" placeholder="0" min="0" max="59"
+                   style="width:72px;text-align:center;" value="{{ est_m|default:0 }}">
             <span style="color:var(--text-muted);font-size:0.85rem;flex-shrink:0;">min</span>
           </div>
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label">Responsable de validación</label>
+        <label class="form-label">Responsable de validación de horas</label>
         <select name="task_responsible" class="form-control">
           <option value="">Sin responsable</option>
           {% for mem in members %}

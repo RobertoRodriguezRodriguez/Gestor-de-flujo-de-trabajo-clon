@@ -17,7 +17,7 @@ function applyTheme(base, color) {
 function setBaseTheme(base) {
   const color = document.documentElement.getAttribute('data-color') || 'default';
   applyTheme(base, color);
-  fetch('/set-theme/', {
+  fetch('/accounts/set-theme/', {
     method: 'POST',
     headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
     body: 'base=' + encodeURIComponent(base),
@@ -28,7 +28,7 @@ function setAccentColor(color, isPremium) {
   if (PREMIUM_COLORS.includes(color) && !isPremium) return;
   const base = document.documentElement.getAttribute('data-theme') || 'dark';
   applyTheme(base, color);
-  fetch('/set-theme/', {
+  fetch('/accounts/set-theme/', {
     method: 'POST',
     headers: { 'X-CSRFToken': getCsrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
     body: 'color=' + encodeURIComponent(color),
@@ -49,30 +49,17 @@ function closeModal(id) {
   const m = document.getElementById(id);
   if (m) m.classList.remove('open');
 }
-// Close modal on overlay click
+// Close modal on overlay click (search modal gets full closeSearch(); others just remove 'open')
 document.addEventListener('click', e => {
-  if (e.target.classList.contains('modal-overlay')) {
-    e.target.classList.remove('open');
+  if (!e.target.classList.contains('modal-overlay')) return;
+  if (e.target.id === 'search-modal') {
+    // handled by the search IIFE's closeSearch after it loads
+    const si = document.getElementById('search-input');
+    if (si) si.value = '';
   }
+  e.target.classList.remove('open');
 });
 // Escape is handled by the keyboard shortcuts module below
-
-// ─── Inactividad: cerrar sesión tras 30 min sin actividad ───
-const SESSION_TIMEOUT_MS = 30 * 60 *1000; // 30 minutos
-let _inactivityTimer = null;
-
-function resetInactivityTimer() {
-  if (_inactivityTimer) clearTimeout(_inactivityTimer);
-  _inactivityTimer = setTimeout(() => {
-    window.location.href = '/logout/';
-  }, SESSION_TIMEOUT_MS);
-}
-
-// Reiniciar timer con interacción REAL del usuario
-['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-  document.addEventListener(evt, resetInactivityTimer, { passive: true });
-});
-resetInactivityTimer();
 
 // ─── Notification counter ───
 async function fetchNotifCount() {
@@ -80,11 +67,6 @@ async function fetchNotifCount() {
   if (!el) return;
   try {
     const r = await fetch('/notifications/count/');
-    if (r.status === 401) {
-      // Sesión expirada en el servidor
-      window.location.href = '/login/';
-      return;
-    }
     const data = await r.json();
     el.textContent = data.count || '';
     el.style.display = data.count > 0 ? 'flex' : 'none';
@@ -238,84 +220,225 @@ colorInputs.forEach(inp => {
 const keyInput = document.getElementById('id-key');
 if (keyInput) keyInput.addEventListener('input', () => keyInput.value = keyInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10));
 
-// ─── Mobile menus outside click ───
-document.addEventListener('click', e => {
-  const sidebar = document.getElementById('sidebar');
-  const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-  if (sidebar && sidebar.classList.contains('open') && mobileMenuBtn) {
-    if (!sidebar.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
-      sidebar.classList.remove('open');
-    }
+// ─── Global Search (Cmd+K / Ctrl+K) ───
+(function () {
+  const overlay = document.getElementById('search-modal');
+  if (!overlay) return;
+
+  const input = document.getElementById('search-input');
+  const resultsEl = document.getElementById('search-results');
+  const searchBtn = document.getElementById('search-btn');
+  let debounceTimer = null;
+  let currentIndex = -1;
+
+  function openSearch() {
+    overlay.classList.add('open');
+    setTimeout(() => input.focus(), 30);
   }
 
-  const topbarActions = document.getElementById('topbar-actions');
-  const mobileActionsBtn = document.getElementById('mobile-actions-btn');
-  if (topbarActions && topbarActions.classList.contains('open') && mobileActionsBtn) {
-    if (!topbarActions.contains(e.target) && !mobileActionsBtn.contains(e.target)) {
-      topbarActions.classList.remove('open');
-    }
+  function closeSearch() {
+    overlay.classList.remove('open');
+    input.value = '';
+    resultsEl.innerHTML = '<div class="search-empty" style="padding:28px 16px;"><div style="font-size:1.4rem;margin-bottom:8px;">⌕</div>Escribe para buscar en toda tu área de trabajo</div>';
+    currentIndex = -1;
   }
-});
 
-// ─── Markdown editor sync ───
-function initMarkdownEditors() {
-  if (typeof EasyMDE === 'undefined') return;
+  if (searchBtn) searchBtn.addEventListener('click', openSearch);
 
-  document.querySelectorAll('textarea[data-md-editor="true"]').forEach(textarea => {
-    if (textarea.dataset.mdReady === 'true') return;
-
-    const editor = new EasyMDE({
-      element: textarea,
-      spellChecker: false,
-      status: false,
-      autoDownloadFontAwesome: true,
-      forceSync: true,
-      minHeight: textarea.rows && textarea.rows > 3 ? '120px' : '90px',
-      toolbar: ['bold', 'italic', 'strikethrough', '|', 'heading', 'quote', 'unordered-list', 'ordered-list', '|', 'link', 'image', 'table', '|', 'preview', 'side-by-side', 'guide'],
-    });
-
-    const codemirror = editor.codemirror;
-    const syncToTextarea = () => {
-      textarea.value = editor.value();
-      textarea.dispatchEvent(new Event('input', { bubbles: true }));
-      textarea.dispatchEvent(new Event('change', { bubbles: true }));
-    };
-
-    codemirror.on('change', syncToTextarea);
-
-    textarea.addEventListener('input', () => {
-      const currentValue = editor.value();
-      if (textarea.value !== currentValue) {
-        editor.value(textarea.value || '');
-      }
-    });
-
-    if (textarea.form) {
-      textarea.form.addEventListener('reset', () => {
-        setTimeout(() => editor.value(textarea.defaultValue || ''), 0);
-      });
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      overlay.classList.contains('open') ? closeSearch() : openSearch();
     }
-
-    textarea.dataset.mdReady = 'true';
   });
-}
 
-initMarkdownEditors();
+  // Override global Escape handler for the search modal specifically
+  overlay.addEventListener('keydown', e => {
+    const items = resultsEl.querySelectorAll('a.search-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      currentIndex = Math.min(currentIndex + 1, items.length - 1);
+      updateActive(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      currentIndex = Math.max(currentIndex - 1, -1);
+      updateActive(items);
+      if (currentIndex === -1) input.focus();
+    } else if (e.key === 'Enter' && currentIndex >= 0) {
+      e.preventDefault();
+      window.location = items[currentIndex].href;
+      closeSearch();
+    } else if (e.key === 'Escape') {
+      closeSearch();
+    }
+  });
 
-function renderMarkdownBlocks() {
-  if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') return;
+  function updateActive(items) {
+    items.forEach((el, i) => el.classList.toggle('active', i === currentIndex));
+    if (currentIndex >= 0) items[currentIndex].scrollIntoView({ block: 'nearest' });
+  }
 
-  document.querySelectorAll('[data-render-markdown="true"]').forEach(el => {
-    if (el.dataset.mdRendered === 'true') return;
-    const source = el.textContent || '';
-    if (!source.trim()) {
-      el.dataset.mdRendered = 'true';
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    currentIndex = -1;
+    const q = input.value.trim();
+    if (q.length < 2) {
+      resultsEl.innerHTML = q.length === 0
+        ? '<div class="search-empty" style="padding:28px 16px;"><div style="font-size:1.4rem;margin-bottom:8px;">⌕</div>Escribe para buscar en toda tu área de trabajo</div>'
+        : '<div class="search-empty">Escribe al menos 2 caracteres…</div>';
+      return;
+    }
+    debounceTimer = setTimeout(() => fetchResults(q), 220);
+  });
+
+  async function fetchResults(q) {
+    resultsEl.innerHTML = '<div class="search-empty">Buscando…</div>';
+    try {
+      const r = await fetch('/search/?q=' + encodeURIComponent(q), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      const data = await r.json();
+      renderResults(data);
+    } catch {
+      resultsEl.innerHTML = '<div class="search-empty">Error al buscar.</div>';
+    }
+  }
+
+  function renderResults({ tasks, projects, users }) {
+    const total = tasks.length + projects.length + users.length;
+    if (total === 0) {
+      resultsEl.innerHTML = '<div class="search-empty">Sin resultados para esta búsqueda.</div>';
       return;
     }
 
-    const rendered = marked.parse(source, { gfm: true, breaks: true });
-    el.innerHTML = DOMPurify.sanitize(rendered);
-    el.dataset.mdRendered = 'true';
+    let html = '';
+
+    if (projects.length) {
+      html += '<div class="search-group-label">Proyectos</div>';
+      for (const p of projects) {
+        html += `<a class="search-item" href="${p.url}">
+          <div class="search-item-icon">${esc(p.key)}</div>
+          <div class="search-item-text">
+            <div class="search-item-title">${esc(p.title)}</div>
+          </div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>`;
+      }
+    }
+
+    if (tasks.length) {
+      html += '<div class="search-group-label">Tareas</div>';
+      for (const t of tasks) {
+        html += `<a class="search-item" href="${t.url}">
+          <div class="search-item-icon">${esc(t.key)}</div>
+          <div class="search-item-text">
+            <div class="search-item-title">${esc(t.title)}</div>
+            <div class="search-item-sub">${esc(t.project)}</div>
+          </div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>`;
+      }
+    }
+
+    if (users.length) {
+      html += '<div class="search-group-label">Personas</div>';
+      for (const u of users) {
+        html += `<div class="search-item" tabindex="-1">
+          <div class="search-item-icon" style="background:var(--accent-light);color:var(--accent);">${esc(u.initials)}</div>
+          <div class="search-item-text">
+            <div class="search-item-title">${esc(u.title)}</div>
+            <div class="search-item-sub">${esc(u.subtitle)}</div>
+          </div>
+        </div>`;
+      }
+    }
+
+    resultsEl.innerHTML = html;
+    currentIndex = -1;
+
+    resultsEl.querySelectorAll('a.search-item').forEach(el => {
+      el.addEventListener('click', closeSearch);
+    });
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+})();
+
+// ─── Kanban card navigation (skip when inline-editing) ───
+function handleCardClick(e, card) {
+  if (e.target.closest('.task-card-title')) return; // title handles its own clicks
+  window.location = card.dataset.detailUrl;
+}
+
+// ─── Inline title edit on double-click ───
+function startInlineTitleEdit(e, el, saveUrl) {
+  e.stopPropagation();
+  if (el.contentEditable === 'true') return;
+
+  const card = el.closest('.task-card');
+  const original = el.textContent.trim();
+  let done = false;
+
+  el.contentEditable = 'true';
+  if (card) card.draggable = false;
+  el.focus();
+
+  // Select all text
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  function finish(newTitle) {
+    if (done) return;
+    done = true;
+    el.contentEditable = 'false';
+    if (card) card.draggable = true;
+
+    if (!newTitle || newTitle === original) {
+      el.textContent = original;
+      return;
+    }
+
+    el.textContent = newTitle; // optimistic
+    const fd = new FormData();
+    fd.append('title', newTitle);
+    fetch(saveUrl, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrf() },
+      body: fd,
+    })
+      .then(r => r.json())
+      .then(data => { el.textContent = data.ok ? data.title : original; })
+      .catch(() => { el.textContent = original; });
+  }
+
+  function cancel() {
+    if (done) return;
+    done = true;
+    el.contentEditable = 'false';
+    if (card) card.draggable = true;
+    el.textContent = original;
+  }
+
+  el.addEventListener('blur', () => finish(el.textContent.trim()));
+
+  el.addEventListener('keydown', function onKey(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      el.removeEventListener('keydown', onKey);
+      finish(el.textContent.trim());
+    } else if (e.key === 'Escape') {
+      el.removeEventListener('keydown', onKey);
+      cancel();
+    }
   });
 }
 

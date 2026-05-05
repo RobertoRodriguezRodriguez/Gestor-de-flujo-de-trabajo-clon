@@ -49,7 +49,7 @@
       <span class="badge badge-{{ project.priority }}">{{ project.get_priority_display }}</span>
     </div>
     {% if project.description %}
-    <div class="text-muted md-content" data-render-markdown="true" style="font-size:0.875rem;max-width:600px;">{{ project.description }}</div>
+    <p class="text-muted" style="font-size:0.875rem;max-width:600px;">{{ project.description }}</p>
     {% endif %}
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
@@ -84,34 +84,14 @@
   {% endif %}
 </div>
 
-<!-- Bolsa de horas -->
-{% if hour_stats.budget %}
-<div style="margin-bottom:20px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-    <span style="font-size:0.85rem;font-weight:600;">Bolsa de horas</span>
-    <div style="display:flex;gap:16px;font-size:0.82rem;">
-      <span style="color:var(--text-muted);">Presupuesto: <strong style="color:var(--text);">{{ hour_stats.budget }}h</strong></span>
-      <span style="color:var(--text-muted);">Consumidas: <strong style="color:var(--text);">{{ hour_stats.consumed }}h</strong></span>
-      <span style="color:{% if hour_stats.remaining < 0 %}var(--danger){% else %}var(--success){% endif %};">
-        Restantes: <strong>{% if hour_stats.remaining >= 0 %}{{ hour_stats.remaining }}h{% else %}−{{ hour_stats.remaining|floatformat:2|slice:"1:" }}h (excedido){% endif %}</strong>
-      </span>
-    </div>
-  </div>
-  <div class="progress">
-    <div class="progress-bar {% if hour_stats.pct >= 100 %}danger{% elif hour_stats.pct >= 80 %}warning{% else %}success{% endif %}"
-      style="width:{{ hour_stats.pct }}%"></div>
-  </div>
-</div>
-{% endif %}
-
 <!-- Tabs -->
 <div class="tabs">
   <a href="#board" class="tab active" onclick="showTab('board', this)">Tablero</a>
   <a href="#list" class="tab" onclick="showTab('list', this)">Lista</a>
   <a href="#sprints" class="tab" onclick="showTab('sprints', this)">Sprints</a>
-  <a href="#hours" class="tab" onclick="showTab('hours', this)">Horas</a>
   <a href="#members" class="tab" onclick="showTab('members', this)">Miembros</a>
   <a href="#tags" class="tab" onclick="showTab('tags', this)">Etiquetas</a>
+  <a href="#hours" class="tab" onclick="showTab('hours', this)">Horas</a>
 </div>
 
 <!-- Board Tab -->
@@ -215,16 +195,19 @@
         {% for task in status_data.tasks %}
         <div class="task-card {% if task.is_overdue %}task-card-overdue{% endif %}"
              draggable="true" data-task-id="{{ task.pk }}"
-             data-assignee="{% if task.assignee %}{{ task.assignee.pk }}{% endif %}"
-             data-sprint="{% if task.sprint %}{{ task.sprint.pk }}{% endif %}"
+             data-detail-url="{% url 'task_detail' project.pk task.pk %}"
+             data-assignee="{{ task.assignee_id|default:'' }}"
+             data-sprint="{{ task.sprint_id|default:'' }}"
              data-priority="{{ task.priority }}"
              data-tags="{% for tag in task.tags.all %}{{ tag.pk }}{% if not forloop.last %},{% endif %}{% endfor %}"
-             onclick="window.location='{% url 'task_detail' project.pk task.pk %}'">
+             onclick="handleCardClick(event, this)">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
             <span class="badge badge-{{ task.type }}" style="font-size:0.65rem;">{{ task.get_type_display }}</span>
             <span class="badge badge-{{ task.priority }}" style="font-size:0.65rem;">{{ task.get_priority_display }}</span>
           </div>
-          <div class="task-card-title">{{ task.title }}</div>
+          <div class="task-card-title"
+               title="Doble clic para editar"
+               ondblclick="startInlineTitleEdit(event, this, '{% url 'task_update_title' project.pk task.pk %}')">{{ task.title }}</div>
           <div class="task-card-meta">
             <span class="task-key">{{ project.key }}-{{ task.project_sequence }}</span>
             <div style="display:flex;align-items:center;gap:6px;">
@@ -261,18 +244,18 @@
 </div>
 
 <!-- List Tab -->
-<div id="tab-list" style="display:none;">
+<div id="tab-list" style="display:none;" data-list-url="{% url 'task_list_data' project.pk %}">
   <div class="card" style="padding:0;overflow-x:auto;">
-    <table class="table">
+    <table class="table" id="list-table">
       <thead>
         <tr>
-          <th>Clave</th>
-          <th>Título</th>
-          <th>Tipo</th>
-          <th>Estado</th>
-          <th>Prioridad</th>
-          <th>Asignado a</th>
-          <th>Vence</th>
+          <th class="th-sort" data-col="key">Clave <span class="sort-icon"></span></th>
+          <th class="th-sort" data-col="title">Título <span class="sort-icon"></span></th>
+          <th class="th-sort" data-col="type">Tipo <span class="sort-icon"></span></th>
+          <th class="th-sort" data-col="status">Estado <span class="sort-icon"></span></th>
+          <th class="th-sort" data-col="priority">Prioridad <span class="sort-icon"></span></th>
+          <th class="th-sort" data-col="assignee">Asignado a <span class="sort-icon"></span></th>
+          <th class="th-sort" data-col="due_date">Vence <span class="sort-icon"></span></th>
         </tr>
       </thead>
       <tbody>
@@ -304,6 +287,7 @@
         {% endfor %}
       </tbody>
     </table>
+    <div id="list-pagination" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid var(--border);min-height:48px;"></div>
   </div>
 </div>
 
@@ -329,7 +313,7 @@
         <div class="form-group"><label class="form-label">Inicio</label><input type="datetime-local" name="start_date" class="form-control"></div>
         <div class="form-group"><label class="form-label">Fin</label><input type="datetime-local" name="end_date" class="form-control"></div>
       </div>
-      <div class="form-group"><label class="form-label">Objetivo</label><textarea name="goal" class="form-control" data-md-editor="true" rows="2" placeholder="¿Qué se quiere lograr?"></textarea></div>
+      <div class="form-group"><label class="form-label">Objetivo</label><textarea name="goal" class="form-control" rows="2" placeholder="¿Qué se quiere lograr?"></textarea></div>
       <button type="submit" class="btn btn-primary btn-sm">Crear Sprint</button>
     </form>
   </div>
@@ -620,136 +604,6 @@
 </script>
 </div>
 
-<!-- Hours Tab -->
-<div id="tab-hours" style="display:none;">
-
-  <!-- Resumen global -->
-  <div class="card" style="margin-bottom:16px;">
-    <div class="card-title" style="margin-bottom:16px;">Resumen de horas</div>
-    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
-      <div style="flex:1;min-width:120px;background:var(--bg3);border-radius:var(--radius);padding:14px 18px;">
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Presupuesto</div>
-        <div style="font-size:1.4rem;font-weight:700;">{% if hour_stats.budget %}{{ hour_stats.budget }}h{% else %}—{% endif %}</div>
-      </div>
-      <div style="flex:1;min-width:120px;background:var(--bg3);border-radius:var(--radius);padding:14px 18px;">
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Consumidas</div>
-        <div style="font-size:1.4rem;font-weight:700;">{{ hour_stats.consumed }}h</div>
-      </div>
-      {% if hour_stats.budget %}
-      <div style="flex:1;min-width:120px;background:var(--bg3);border-radius:var(--radius);padding:14px 18px;">
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Restantes</div>
-        <div style="font-size:1.4rem;font-weight:700;color:{% if hour_stats.remaining < 0 %}var(--danger){% else %}var(--success){% endif %};">
-          {% if hour_stats.remaining >= 0 %}{{ hour_stats.remaining }}h{% else %}−{{ hour_stats.remaining|floatformat:2|slice:"1:" }}h{% endif %}
-        </div>
-      </div>
-      <div style="flex:1;min-width:120px;background:var(--bg3);border-radius:var(--radius);padding:14px 18px;">
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Uso</div>
-        <div style="font-size:1.4rem;font-weight:700;">{{ hour_stats.pct }}%</div>
-      </div>
-      {% endif %}
-    </div>
-    {% if hour_stats.budget %}
-    <div class="progress" style="height:8px;">
-      <div class="progress-bar {% if hour_stats.pct >= 100 %}danger{% elif hour_stats.pct >= 80 %}warning{% else %}success{% endif %}"
-        style="width:{{ hour_stats.pct }}%"></div>
-    </div>
-    {% endif %}
-  </div>
-
-  <!-- Desglose por miembro -->
-  <div class="card" style="margin-bottom:16px;">
-    <div class="card-title" style="margin-bottom:14px;">Por miembro</div>
-    {% if hours_by_member %}
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Miembro</th>
-          <th style="text-align:right;">Horas registradas</th>
-          {% if hour_stats.budget %}<th style="width:180px;">Proporción</th>{% endif %}
-          {% if membership.role in 'owner,manager' %}<th></th>{% endif %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in hours_by_member %}
-        <tr>
-          <td>
-            <a href="{% url 'user_profile' row.user__id %}" style="display:flex;align-items:center;gap:8px;color:var(--text);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
-              <div class="avatar avatar-sm">{{ row.user__name|slice:":1"|upper }}</div>
-              {{ row.user__name }}
-            </a>
-          </td>
-          <td style="text-align:right;font-weight:600;">{{ row.logged }}h</td>
-          {% if hour_stats.budget %}
-          <td>
-            <div class="progress" style="height:6px;">
-              <div class="progress-bar" style="width:{% widthratio row.logged hour_stats.consumed 100 %}%"></div>
-            </div>
-          </td>
-          {% endif %}
-          {% if membership.role in 'owner,manager' %}
-          <td>
-            <a href="{% url 'member_hour_history' project.pk row.user__id %}" class="btn btn-ghost btn-sm">Ver detalle</a>
-          </td>
-          {% endif %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="text-muted text-sm">Aún no hay horas registradas.</p>
-    {% endif %}
-  </div>
-
-  <!-- Desglose por tarea -->
-  <div class="card">
-    <div class="card-title" style="margin-bottom:14px;">Por tarea</div>
-    {% if hours_by_task %}
-    <div style="overflow-x:auto;">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Tarea</th>
-            <th style="text-align:right;">Estimadas</th>
-            <th style="text-align:right;">Registradas</th>
-            <th style="width:180px;">Progreso</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in hours_by_task %}
-          <tr>
-            <td>
-              <a href="{% url 'task_detail' project.pk row.task__id %}" style="color:var(--text);">
-                <span style="color:var(--text-muted);font-size:0.8rem;">{{ project.key }}-{{ row.task__project_sequence }}</span>
-                {{ row.task__title }}
-              </a>
-            </td>
-            <td style="text-align:right;color:var(--text-muted);">
-              {% if row.task__estimated_hours %}{{ row.task__estimated_hours }}h{% else %}—{% endif %}
-            </td>
-            <td style="text-align:right;font-weight:600;">{{ row.logged }}h</td>
-            <td>
-              {% if row.task__estimated_hours %}
-                {% with pct=row.logged %}
-                <div class="progress" style="height:6px;">
-                  <div class="progress-bar {% if row.logged > row.task__estimated_hours %}danger{% else %}success{% endif %}"
-                    style="width:{% widthratio row.logged row.task__estimated_hours 100 %}%{% if row.logged > row.task__estimated_hours %};max-width:100%{% endif %}"></div>
-                </div>
-                {% endwith %}
-              {% else %}
-              <span style="font-size:0.78rem;color:var(--text-muted);">Sin estimación</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="text-muted text-sm">Aún no hay horas registradas en tareas.</p>
-    {% endif %}
-  </div>
-</div>
-
 <!-- Members Tab -->
 <div id="tab-members" style="display:none;">
   <div class="card">
@@ -765,13 +619,10 @@
         {% for mem in members %}
         <tr>
           <td>
-            <a href="{% url 'user_profile' mem.user.pk %}" style="display:flex;align-items:center;gap:8px;color:var(--text);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
-              <div class="avatar-wrapper">
-                <div class="avatar avatar-sm">{% if mem.user.avatar %}<img src="{{ mem.user.avatar.url }}" alt="">{% else %}{{ mem.user.get_initials }}{% endif %}</div>
-                <span class="status-dot {{ mem.user.get_online_status }}" style="width:8px;height:8px;"></span>
-              </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="avatar avatar-sm">{% if mem.user.avatar %}<img src="{{ mem.user.avatar.url }}" alt="">{% else %}{{ mem.user.get_initials }}{% endif %}</div>
               {{ mem.user.name }}
-            </a>
+            </div>
           </td>
           <td class="text-muted text-sm">{{ mem.user.email }}</td>
           <td><span class="badge badge-{{ mem.role }}">{{ mem.get_role_display }}</span></td>
@@ -822,6 +673,146 @@
     {% endfor %}
     {% if not tags %}<span class="text-muted text-sm">Sin etiquetas aún.</span>{% endif %}
   </div>
+</div>
+
+<!-- Hours Tab -->
+<div id="tab-hours" style="display:none;">
+
+  <!-- Hour pool widget -->
+  {% if hour_stats.budget %}
+  <div class="card" style="margin-bottom:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      <span style="font-size:0.85rem;font-weight:600;">Bolsa de horas</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px;font-size:0.85rem;">
+      <span style="color:var(--text-muted);">Presupuesto: <strong style="color:var(--text);">{{ hour_stats.budget }}h</strong></span>
+      <span style="color:var(--text-muted);">Consumidas: <strong style="color:var(--text);">{{ hour_stats.consumed }}h</strong></span>
+      <span style="color:{% if hour_stats.remaining < 0 %}var(--danger){% else %}var(--success){% endif %};">
+        Restantes: <strong>{% if hour_stats.remaining >= 0 %}{{ hour_stats.remaining }}h{% else %}−{{ hour_stats.remaining|floatformat:2|slice:"1:" }}h (excedido){% endif %}</strong>
+      </span>
+    </div>
+    <div class="progress">
+      <div class="progress-bar {% if hour_stats.pct >= 100 %}danger{% elif hour_stats.pct >= 80 %}warning{% else %}success{% endif %}"
+        style="width:{{ hour_stats.pct }}%"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Summary KPIs -->
+  <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+    <div style="flex:1;min-width:130px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;">
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Presupuesto</div>
+      <div style="font-size:1.4rem;font-weight:700;">{% if hour_stats.budget %}{{ hour_stats.budget }}h{% else %}—{% endif %}</div>
+    </div>
+    <div style="flex:1;min-width:130px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;">
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Consumidas</div>
+      <div style="font-size:1.4rem;font-weight:700;">{{ hour_stats.consumed }}h</div>
+    </div>
+    {% if hour_stats.budget %}
+    <div style="flex:1;min-width:130px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;">
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Restantes</div>
+      <div style="font-size:1.4rem;font-weight:700;color:{% if hour_stats.remaining < 0 %}var(--danger){% else %}var(--success){% endif %};">
+        {% if hour_stats.remaining >= 0 %}{{ hour_stats.remaining }}h{% else %}−{{ hour_stats.remaining|floatformat:2|slice:"1:" }}h{% endif %}
+      </div>
+    </div>
+    <div style="flex:1;min-width:130px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;">
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">Uso</div>
+      <div style="font-size:1.4rem;font-weight:700;">{{ hour_stats.pct }}%</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- By member -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title" style="margin-bottom:14px;">Por miembro</div>
+    {% if hours_by_member %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Miembro</th>
+          <th style="text-align:right;">Horas registradas</th>
+          {% if hour_stats.consumed %}<th style="width:180px;">Proporción</th>{% endif %}
+          {% if membership.role in 'owner,manager' %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in hours_by_member %}
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="avatar avatar-sm">{{ row.user__name|slice:":1"|upper }}</div>
+              {{ row.user__name }}
+            </div>
+          </td>
+          <td style="text-align:right;font-weight:600;">{{ row.logged }}h</td>
+          {% if hour_stats.consumed %}
+          <td>
+            <div class="progress" style="height:6px;">
+              <div class="progress-bar" style="width:{% widthratio row.logged hour_stats.consumed 100 %}%"></div>
+            </div>
+          </td>
+          {% endif %}
+          {% if membership.role in 'owner,manager' %}
+          <td>
+            <a href="{% url 'member_hour_history' project.pk row.user__id %}" class="btn btn-ghost btn-sm">Ver detalle</a>
+          </td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted text-sm">Aún no hay horas registradas.</p>
+    {% endif %}
+  </div>
+
+  <!-- By task -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:14px;">Por tarea</div>
+    {% if hours_by_task %}
+    <div style="overflow-x:auto;">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Tarea</th>
+            <th>Estado</th>
+            <th style="text-align:right;">Estimado</th>
+            <th style="text-align:right;">Registrado</th>
+            <th style="width:160px;">Progreso</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in hours_by_task %}
+          <tr>
+            <td>
+              <a href="{% url 'task_detail' project.pk row.task__id %}" style="color:var(--text);">
+                <span style="color:var(--text-muted);font-size:0.8rem;">{{ project.key }}-{{ row.task__project_sequence }}</span>
+                {{ row.task__title }}
+              </a>
+            </td>
+            <td><span class="badge badge-{{ row.task__status }}">{{ row.task__status }}</span></td>
+            <td style="text-align:right;color:var(--text-muted);">
+              {% if row.task__estimated_hours %}{{ row.task__estimated_hours }}h{% else %}—{% endif %}
+            </td>
+            <td style="text-align:right;font-weight:600;">{{ row.logged }}h</td>
+            <td>
+              {% if row.task__estimated_hours %}
+              <div class="progress" style="height:6px;">
+                <div class="progress-bar {% if row.logged > row.task__estimated_hours %}danger{% else %}success{% endif %}"
+                  style="width:{% widthratio row.logged row.task__estimated_hours 100 %}%;{% if row.logged > row.task__estimated_hours %}max-width:100%{% endif %}"></div>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-sm">Aún no hay horas registradas en tareas.</p>
+    {% endif %}
+  </div>
+
 </div>
 
 <!-- Add member modal -->

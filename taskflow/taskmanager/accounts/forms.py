@@ -52,13 +52,10 @@ class RegisterForm(forms.ModelForm):
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ['name', 'email', 'avatar', 'company_role', 'description', 'hours_pool']
+        fields = ['name', 'email', 'avatar']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'company_role': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej: Desarrollador Frontend, Product Manager…'}),
-            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Cuéntanos algo sobre ti…'}),
-            'hours_pool': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.5', 'min': '0', 'placeholder': '0'}),
         }
 
     def clean_avatar(self):

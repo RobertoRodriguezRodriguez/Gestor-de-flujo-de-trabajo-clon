@@ -5,14 +5,12 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.db.models import Sum
-from django.utils import timezone
+from django.db.models import Q, Sum
+from django.http import JsonResponse
 from .models import Organization, OrganizationUser
 from .permissions import can_manage_members, can_assign_role, is_last_owner
 from shared.decorators import require_org_member, org_permission
 from projects.models import Project
-
-NAME_CHANGE_DAYS = 90
 
 User = get_user_model()
 
@@ -93,53 +91,6 @@ def org_create(request):
 
 
 @login_required
-@org_permission(can_manage_members)
-def org_edit(request, pk, org=None, org_membership=None):
-    now = timezone.now()
-    name_locked = False
-    name_days_remaining = 0
-
-    if org.name_changed_at:
-        delta = now - org.name_changed_at
-        if delta < timedelta(days=NAME_CHANGE_DAYS):
-            name_locked = True
-            name_days_remaining = NAME_CHANGE_DAYS - delta.days
-
-    if request.method == 'POST':
-        new_name = request.POST.get('name', '').strip()
-        if not new_name:
-            messages.error(request, 'El nombre es obligatorio.')
-        else:
-            name_changed = new_name != org.name
-            if name_changed and name_locked:
-                messages.error(
-                    request,
-                    f'El nombre de la organización solo se puede cambiar una vez cada {NAME_CHANGE_DAYS} días. '
-                    f'Podrás cambiarlo en {name_days_remaining} día{"s" if name_days_remaining != 1 else ""}.'
-                )
-            else:
-                update_fields = ['crm_company_id', 'updated_at']
-                org.crm_company_id = request.POST.get('crm_company_id', '')
-                if 'logo' in request.FILES:
-                    org.logo = request.FILES['logo']
-                    update_fields.append('logo')
-                if name_changed:
-                    org.name = new_name
-                    org.name_changed_at = now
-                    update_fields += ['name', 'name_changed_at']
-                org.save(update_fields=update_fields)
-                messages.success(request, f'Organización "{org.name}" actualizada.')
-                return redirect('org_detail', pk=org.pk)
-
-    return render(request, 'organizations/org_form.html', {
-        'title': 'Editar Organización',
-        'org': org,
-        'name_locked': name_locked,
-        'name_days_remaining': name_days_remaining,
-    })
-
-
-@login_required
 @require_org_member()
 def org_detail(request, pk, org=None, org_membership=None):
     members = org.get_active_members()
@@ -212,18 +163,20 @@ def org_member_update(request, pk, member_pk, org=None, org_membership=None):
 
 @login_required
 @org_permission(can_manage_members)
-def org_rename_project(request, pk, project_pk, org=None, org_membership=None):
-    from django.views.decorators.http import require_POST as _require_post
-    project = get_object_or_404(Project, pk=project_pk, organization=org, deleted_at__isnull=True)
+def org_edit(request, pk, org=None, org_membership=None):
     if request.method == 'POST':
-        new_name = request.POST.get('name', '').strip()
-        if not new_name:
-            messages.error(request, 'El nombre del proyecto no puede estar vacío.')
+        name = request.POST.get('name', '').strip()
+        if not name:
+            messages.error(request, 'El nombre es obligatorio.')
         else:
-            project.name = new_name
-            project.save(update_fields=['name', 'updated_at'])
-            messages.success(request, f'Proyecto renombrado a "{new_name}".')
-    return redirect('org_detail', pk=pk)
+            org.name = name
+            org.crm_company_id = request.POST.get('crm_company_id', '')
+            if 'logo' in request.FILES:
+                org.logo = request.FILES['logo']
+            org.save()
+            messages.success(request, f'Organización "{org.name}" actualizada.')
+            return redirect('org_detail', pk=org.pk)
+    return render(request, 'organizations/org_form.html', {'title': 'Editar Organización', 'org': org})
 
 
 def _can_view_org_hours(membership):
@@ -239,18 +192,18 @@ def org_hours_overview(request, pk, org=None, org_membership=None):
         organization=org, deleted_at__isnull=True
     ).prefetch_related('time_logs')
 
-    # Per-project stats
     per_project = []
     total_budget = 0
     total_consumed = 0
     for project in projects:
-        consumed = project.time_logs.aggregate(total=Sum('hours'))['total'] or 0
+        consumed_min = project.time_logs.aggregate(total=Sum('minutes'))['total'] or 0
+        consumed = round(consumed_min / 60, 2)
         budget = project.hour_budget
         if budget:
             total_budget += float(budget)
-        total_consumed += float(consumed)
-        remaining = float(budget) - float(consumed) if budget else None
-        pct = min(round(float(consumed) / float(budget) * 100), 100) if budget else 0
+        total_consumed += consumed
+        remaining = float(budget) - consumed if budget else None
+        pct = min(round(consumed / float(budget) * 100), 100) if budget else 0
         per_project.append({
             'project': project,
             'budget': budget,
@@ -258,38 +211,40 @@ def org_hours_overview(request, pk, org=None, org_membership=None):
             'remaining': remaining,
             'pct': pct,
         })
-    per_project.sort(key=lambda r: float(r['consumed']), reverse=True)
+    per_project.sort(key=lambda r: r['consumed'], reverse=True)
 
-    # Per-member stats across all org projects
     per_member = (
         TimeLog.objects
-        .filter(project__organization=org, project__deleted_at__isnull=True)
+        .filter(task__project__organization=org, task__project__deleted_at__isnull=True)
         .values('user__id', 'user__name', 'user__avatar')
-        .annotate(logged=Sum('hours'))
-        .order_by('-logged')
+        .annotate(logged_min=Sum('minutes'))
+        .order_by('-logged_min')
     )
 
-    # Per-member per-project breakdown grouped for template
     member_project_breakdown = (
         TimeLog.objects
-        .filter(project__organization=org, project__deleted_at__isnull=True)
-        .values('user__id', 'user__name', 'project__id', 'project__name', 'project__key')
-        .annotate(logged=Sum('hours'))
-        .order_by('user__name', '-logged')
+        .filter(task__project__organization=org, task__project__deleted_at__isnull=True)
+        .values('user__id', 'user__name', 'task__project__id', 'task__project__name', 'task__project__key')
+        .annotate(logged_min=Sum('minutes'))
+        .order_by('user__name', '-logged_min')
     )
     breakdown_by_user = {}
     for row in member_project_breakdown:
         uid = str(row['user__id'])
-        breakdown_by_user.setdefault(uid, []).append(row)
+        breakdown_by_user.setdefault(uid, []).append({
+            'project__id': row['task__project__id'],
+            'project__name': row['task__project__name'],
+            'project__key': row['task__project__key'],
+            'logged': round(row['logged_min'] / 60, 2),
+        })
 
-    # Attach breakdown to per_member rows for template iteration
     per_member_with_breakdown = []
     for row in per_member:
         uid = str(row['user__id'])
         per_member_with_breakdown.append({
             'uid': uid,
             'name': row['user__name'],
-            'logged': row['logged'],
+            'logged': round(row['logged_min'] / 60, 2),
             'projects': breakdown_by_user.get(uid, []),
         })
 
@@ -317,31 +272,27 @@ def org_hours_export(request, pk, org=None, org_membership=None):
     import io
     from datetime import date
     from tasks.models import TimeLog
-    from projects.models import Project
 
     fmt = request.GET.get('format', 'csv')
     date_from = request.GET.get('date_from') or None
     date_to = request.GET.get('date_to') or None
     project_id = request.GET.get('project') or None
     user_id = request.GET.get('user') or None
-    task_id = request.GET.get('task') or None
 
     qs = (
         TimeLog.objects
-        .filter(project__organization=org, project__deleted_at__isnull=True)
-        .select_related('task', 'project', 'user')
-        .order_by('logged_date', 'project__name', 'user__name')
+        .filter(task__project__organization=org, task__project__deleted_at__isnull=True)
+        .select_related('task', 'task__project', 'user')
+        .order_by('logged_date', 'task__project__name', 'user__name')
     )
     if date_from:
         qs = qs.filter(logged_date__gte=date_from)
     if date_to:
         qs = qs.filter(logged_date__lte=date_to)
     if project_id:
-        qs = qs.filter(project_id=project_id)
+        qs = qs.filter(task__project_id=project_id)
     if user_id:
         qs = qs.filter(user_id=user_id)
-    if task_id:
-        qs = qs.filter(task_id=task_id)
 
     safe_org_name = re.sub(r'[^\w\-]', '_', org.name)[:40]
     filename_base = f'horas_{safe_org_name}_{date.today()}'
@@ -350,12 +301,12 @@ def org_hours_export(request, pk, org=None, org_membership=None):
     def row_data(log):
         return [
             log.logged_date.strftime('%Y-%m-%d'),
-            log.project.name,
-            log.project.key,
+            log.task.project.name,
+            log.task.project.key,
             log.task.title,
-            f'{log.project.key}-{log.task.project_sequence}',
+            f'{log.task.project.key}-{log.task.project_sequence}',
             log.user.name,
-            float(log.hours),
+            round(log.minutes / 60, 2),
             log.note or '',
         ]
 
@@ -368,8 +319,6 @@ def org_hours_export(request, pk, org=None, org_membership=None):
         wb = Workbook()
         ws = wb.active
         ws.title = 'Horas'
-
-        # Header row
         ws.append(headers)
         header_fill = PatternFill('solid', fgColor='111111')
         header_font = Font(bold=True, color='FFFFFF')
@@ -378,15 +327,11 @@ def org_hours_export(request, pk, org=None, org_membership=None):
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal='center')
-
         for log in qs:
             ws.append(row_data(log))
-
-        # Auto column width
         for col in ws.columns:
             max_len = max(len(str(c.value or '')) for c in col)
             ws.column_dimensions[get_column_letter(col[0].column)].width = min(max_len + 4, 60)
-
         buf = io.BytesIO()
         wb.save(buf)
         buf.seek(0)
@@ -397,11 +342,10 @@ def org_hours_export(request, pk, org=None, org_membership=None):
         response['Content-Disposition'] = f'attachment; filename="{filename_base}.xlsx"'
         return response
 
-    # Default: CSV
     from django.http import HttpResponse
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{filename_base}.csv"'
-    response.write('﻿')  # BOM for Excel UTF-8 compat
+    response.write('﻿')
     writer = csv.writer(response)
     writer.writerow(headers)
     for log in qs:
@@ -414,7 +358,6 @@ def org_hours_export(request, pk, org=None, org_membership=None):
 def org_hours_monthly(request, pk, org=None, org_membership=None):
     from tasks.models import TimeLog
     from django.db.models.functions import TruncMonth
-    from django.db.models import Sum
     from datetime import date
 
     current_year = date.today().year
@@ -423,21 +366,20 @@ def org_hours_monthly(request, pk, org=None, org_membership=None):
     rows = (
         TimeLog.objects
         .filter(
-            project__organization=org,
-            project__deleted_at__isnull=True,
+            task__project__organization=org,
+            task__project__deleted_at__isnull=True,
             logged_date__year=year,
         )
         .annotate(month=TruncMonth('logged_date'))
         .values('user__id', 'user__name', 'month')
-        .annotate(logged=Sum('hours'))
+        .annotate(logged_min=Sum('minutes'))
         .order_by('user__name', 'month')
     )
 
-    # Build pivot: {user_id: {month_num: hours}}
     MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
                    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
-    users_map = {}   # uid -> {name, months: {1..12: hours}, total}
+    users_map = {}
     active_months = set()
 
     for row in rows:
@@ -446,19 +388,18 @@ def org_hours_monthly(request, pk, org=None, org_membership=None):
         active_months.add(month_num)
         if uid not in users_map:
             users_map[uid] = {'name': row['user__name'], 'months': {}, 'total': 0}
-        users_map[uid]['months'][month_num] = float(row['logged'])
-        users_map[uid]['total'] += float(row['logged'])
+        hours = round(row['logged_min'] / 60, 2)
+        users_map[uid]['months'][month_num] = hours
+        users_map[uid]['total'] += hours
 
     months = sorted(active_months)
     month_labels = [MONTH_NAMES[m - 1] for m in months]
 
-    # Month totals
     month_totals = {m: 0.0 for m in months}
     for u in users_map.values():
         for m, h in u['months'].items():
             month_totals[m] += h
 
-    # Build flat list for template
     pivot_rows = [
         {
             'name': u['name'],
@@ -483,3 +424,77 @@ def org_hours_monthly(request, pk, org=None, org_membership=None):
         'grand_total': grand_total,
         'has_data': bool(pivot_rows),
     })
+
+
+@login_required
+def global_search(request):
+    from projects.models import ProjectMember
+    from tasks.models import Task
+    from django.urls import reverse
+
+    q = request.GET.get('q', '').strip()
+    if len(q) < 2:
+        return JsonResponse({'tasks': [], 'projects': [], 'users': []})
+
+    member_project_ids = ProjectMember.objects.filter(
+        user=request.user
+    ).values_list('project_id', flat=True)
+
+    task_qs = (
+        Task.objects
+        .filter(project_id__in=member_project_ids, title__icontains=q)
+        .select_related('project')
+        .order_by('-updated_at')[:5]
+    )
+    tasks = [
+        {
+            'title': t.title,
+            'key': f'{t.project.key}-{t.project_sequence}',
+            'project': t.project.name,
+            'url': reverse('task_detail', kwargs={'project_pk': str(t.project_id), 'pk': str(t.pk)}),
+        }
+        for t in task_qs
+    ]
+
+    proj_qs = (
+        Project.objects
+        .filter(
+            id__in=member_project_ids,
+            deleted_at__isnull=True,
+        )
+        .filter(Q(name__icontains=q) | Q(key__icontains=q))
+        .order_by('name')[:5]
+    )
+    projects = [
+        {
+            'title': p.name,
+            'key': p.key,
+            'url': reverse('project_detail', kwargs={'pk': str(p.pk)}),
+        }
+        for p in proj_qs
+    ]
+
+    org_ids = OrganizationUser.objects.filter(
+        user=request.user
+    ).values_list('organization_id', flat=True)
+    user_qs = (
+        User.objects
+        .filter(
+            Q(name__icontains=q) | Q(email__icontains=q),
+            organization_memberships__organization_id__in=org_ids,
+            is_active=True,
+        )
+        .exclude(pk=request.user.pk)
+        .distinct()
+        .order_by('name')[:5]
+    )
+    users = [
+        {
+            'title': u.name,
+            'subtitle': u.email,
+            'initials': u.get_initials(),
+        }
+        for u in user_qs
+    ]
+
+    return JsonResponse({'tasks': tasks, 'projects': projects, 'users': users})

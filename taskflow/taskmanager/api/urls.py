@@ -1,11 +1,11 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
+from rest_framework_simplejwt.views import TokenVerifyView
 from . import views
 
 urlpatterns = [
     # Auth
     path('auth/token/', views.RateLimitedTokenObtainPairView.as_view(), name='api_token_obtain'),
-    path('auth/token/refresh/', TokenRefreshView.as_view(), name='api_token_refresh'),
+    path('auth/token/refresh/', views.RateLimitedTokenRefreshView.as_view(), name='api_token_refresh'),
     path('auth/token/verify/', TokenVerifyView.as_view(), name='api_token_verify'),
     path('auth/token/revoke/', views.TokenRevokeView.as_view(), name='api_token_revoke'),
 

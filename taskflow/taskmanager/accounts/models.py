@@ -1,5 +1,4 @@
 import uuid
-from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 
@@ -70,76 +69,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return f'{self.name} ({self.email})'
 
-    def get_online_status(self):
-        from django.utils import timezone
-        from datetime import timedelta
-        last = (
-            UserSession.objects.filter(user=self)
-            .order_by('-last_seen')
-            .values_list('last_seen', flat=True)
-            .first()
-        )
-        if last is None:
-            return 'offline'
-        delta = timezone.now() - last
-        if delta < timedelta(minutes=5):
-            return 'online'
-        if delta < timedelta(minutes=30):
-            return 'away'
-        return 'offline'
-
     def get_initials(self):
         parts = self.name.split()
         if len(parts) >= 2:
             return f'{parts[0][0]}{parts[1][0]}'.upper()
         return self.name[:2].upper()
-
-
-class UserSession(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='tracked_sessions',
-    )
-    session_key = models.CharField(max_length=40, unique=True)
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.CharField(max_length=500, blank=True)
-    last_seen = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = 'user_session'
-        ordering = ['-last_seen']
-
-    def get_device_info(self):
-        ua = self.user_agent.lower()
-        if 'edg/' in ua or 'edge/' in ua:
-            browser = 'Edge'
-        elif 'firefox/' in ua:
-            browser = 'Firefox'
-        elif 'chrome/' in ua:
-            browser = 'Chrome'
-        elif 'safari/' in ua:
-            browser = 'Safari'
-        elif 'opera' in ua or 'opr/' in ua:
-            browser = 'Opera'
-        else:
-            browser = 'Navegador'
-
-        if 'android' in ua:
-            os_name = 'Android'
-        elif 'iphone' in ua:
-            os_name = 'iPhone'
-        elif 'ipad' in ua:
-            os_name = 'iPad'
-        elif 'windows' in ua:
-            os_name = 'Windows'
-        elif 'mac os' in ua:
-            os_name = 'macOS'
-        elif 'linux' in ua:
-            os_name = 'Linux'
-        else:
-            os_name = 'Dispositivo desconocido'
-
-        is_mobile = any(x in ua for x in ['mobile', 'android', 'iphone', 'ipad'])
-        return {'browser': browser, 'os': os_name, 'is_mobile': is_mobile}

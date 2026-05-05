@@ -11,14 +11,13 @@ Horas de {{ target_user.name }}
 {% block content %}
 <div style="max-width:900px;margin:0 auto;">
 
-  <!-- Header -->
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
     <div style="display:flex;align-items:center;gap:14px;">
       <div class="avatar avatar-lg">
         {% if target_user.avatar %}<img src="{{ target_user.avatar.url }}" alt="">{% else %}{{ target_user.get_initials }}{% endif %}
       </div>
       <div>
-        <a href="{% url 'user_profile' target_user.pk %}" style="font-size:1.1rem;font-weight:700;color:var(--text);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ target_user.name }}</a>
+        <div style="font-size:1.1rem;font-weight:700;">{{ target_user.name }}</div>
         <div class="text-muted text-sm">{{ target_user.email }}</div>
       </div>
     </div>
@@ -64,13 +63,7 @@ Horas de {{ target_user.name }}
             </a>
           </td>
           <td>
-            <span class="badge
-              {% if row.task__status == 'done' %}badge-success
-              {% elif row.task__status == 'in_progress' %}badge-active
-              {% elif row.task__status == 'in_review' %}badge-warning
-              {% else %}badge-default{% endif %}">
-              {{ row.task__status|capfirst }}
-            </span>
+            <span class="badge badge-{{ row.task__status }}">{{ row.task__status|capfirst }}</span>
           </td>
           <td style="text-align:right;font-weight:600;">{{ row.total }}h</td>
           <td>
@@ -99,7 +92,7 @@ Horas de {{ target_user.name }}
           <tr>
             <th>Fecha</th>
             <th>Tarea</th>
-            <th style="text-align:right;">Horas</th>
+            <th style="text-align:right;">Tiempo</th>
             <th>Nota</th>
           </tr>
         </thead>

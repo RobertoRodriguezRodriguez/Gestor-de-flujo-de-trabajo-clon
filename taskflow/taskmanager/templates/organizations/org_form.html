@@ -10,44 +10,19 @@
       {% csrf_token %}
       <div class="form-group">
         <label class="form-label">Nombre de la organización *</label>
-        {% if name_locked %}
-        <input type="text" name="name" class="form-control" value="{{ org.name }}" disabled
-          style="opacity:0.6;cursor:not-allowed;">
-        <input type="hidden" name="name" value="{{ org.name }}">
-        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding:8px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius-sm);">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span style="font-size:0.78rem;color:var(--warning);">El nombre solo se puede cambiar una vez cada 90 días. Disponible en <strong>{{ name_days_remaining }} día{{ name_days_remaining|pluralize }}</strong>.</span>
-        </div>
-        {% else %}
         <input type="text" name="name" class="form-control" placeholder="Ej: Acme Corp" required value="{{ org.name|default:'' }}">
-        {% if org and org.name_changed_at %}
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Último cambio de nombre: {{ org.name_changed_at|date:"d M Y" }}. El siguiente cambio estará disponible 90 días después.</div>
-        {% elif org %}
-        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Una vez guardado, el nombre solo podrá cambiarse una vez cada 90 días.</div>
-        {% endif %}
-        {% endif %}
       </div>
       <div class="form-group">
-        <label class="form-label">ID CRM <span style="font-weight:400;color:var(--text-muted);">(opcional)</span></label>
+        <label class="form-label">ID CRM (opcional)</label>
         <input type="text" name="crm_company_id" class="form-control" placeholder="ID externo de CRM" value="{{ org.crm_company_id|default:'' }}">
       </div>
       <div class="form-group">
-        <label class="form-label">Logo <span style="font-weight:400;color:var(--text-muted);">(opcional)</span></label>
-        {% if org.logo %}
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-          <img src="{{ org.logo.url }}" alt="Logo actual" style="width:40px;height:40px;border-radius:8px;object-fit:cover;border:1px solid var(--border);">
-          <span style="font-size:0.78rem;color:var(--text-muted);">Logo actual. Sube uno nuevo para reemplazarlo.</span>
-        </div>
-        {% endif %}
+        <label class="form-label">Logo (opcional)</label>
         <input type="file" name="logo" class="form-control" accept="image/*">
       </div>
       <div class="form-actions">
-        {% if org %}
-        <a href="{% url 'org_detail' org.pk %}" class="btn btn-secondary">Cancelar</a>
-        {% else %}
         <a href="{% url 'org_list' %}" class="btn btn-secondary">Cancelar</a>
-        {% endif %}
-        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        <button type="submit" class="btn btn-primary">{{ title }}</button>
       </div>
     </form>
   </div>

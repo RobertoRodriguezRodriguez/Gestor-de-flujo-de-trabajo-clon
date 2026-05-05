@@ -60,7 +60,7 @@ class TaskSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'project', 'sprint_id', 'assignee', 'assignee_id',
             'parent_task', 'project_sequence', 'type', 'title', 'description',
-            'status', 'priority', 'estimated_hours', 'due_date', 'created_at',
+            'status', 'priority', 'estimated_min', 'due_date', 'created_at',
             'updated_at', 'tags', 'tag_ids', 'is_overdue',
         )
         read_only_fields = ('id', 'project', 'project_sequence', 'created_at', 'updated_at')

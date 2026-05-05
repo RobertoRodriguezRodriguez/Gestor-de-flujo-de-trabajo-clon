@@ -162,18 +162,6 @@
         {{ form.email }}
       </div>
       <div class="form-group">
-        <label class="form-label">Cargo en la empresa</label>
-        {{ form.company_role }}
-      </div>
-      <div class="form-group">
-        <label class="form-label">Descripción</label>
-        {{ form.description }}
-      </div>
-      <div class="form-group">
-        <label class="form-label">Bolsa de horas</label>
-        {{ form.hours_pool }}
-      </div>
-      <div class="form-group">
         <label class="form-label">Avatar</label>
         {{ form.avatar }}
       </div>
@@ -183,150 +171,105 @@
       </div>
     </form>
   </div>
-
-  <!-- Actividad global -->
-  <div class="card" style="margin-top:20px;">
-    <div class="section-title" style="margin-bottom:16px;">Mi actividad</div>
-
-    <!-- KPIs -->
-    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
-      <div style="flex:1;min-width:110px;background:var(--bg3);border-radius:var(--radius);padding:12px 16px;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:700;">{{ total_hours|floatformat:1 }}h</div>
-        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Horas totales</div>
-      </div>
-      <div style="flex:1;min-width:110px;background:var(--bg3);border-radius:var(--radius);padding:12px 16px;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:700;">{{ task_counts.total }}</div>
-        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Tareas asignadas</div>
-      </div>
-      <div style="flex:1;min-width:110px;background:var(--bg3);border-radius:var(--radius);padding:12px 16px;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:700;color:var(--success);">{{ task_counts.done }}</div>
-        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Completadas</div>
-      </div>
-      <div style="flex:1;min-width:110px;background:var(--bg3);border-radius:var(--radius);padding:12px 16px;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:700;color:var(--accent);">{{ task_counts.in_progress }}</div>
-        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">En progreso</div>
-      </div>
-      <div style="flex:1;min-width:110px;background:var(--bg3);border-radius:var(--radius);padding:12px 16px;text-align:center;">
-        <div style="font-size:1.4rem;font-weight:700;color:var(--warning);">{{ task_counts.in_review }}</div>
-        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">En revisión</div>
-      </div>
-    </div>
-
-    <!-- Historial por organización → proyecto -->
-    {% if activity_by_org %}
-    <div style="display:flex;flex-direction:column;gap:16px;">
-      {% for org in activity_by_org %}
-      <div>
-        <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;">
-          {{ org.name }}
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
-          <thead>
-            <tr style="color:var(--text-muted);font-size:0.75rem;">
-              <th style="padding:4px 0;text-align:left;font-weight:500;">Proyecto</th>
-              <th style="padding:4px 8px;text-align:right;font-weight:500;">Horas</th>
-              <th style="padding:4px 8px;text-align:right;font-weight:500;">Tareas</th>
-              <th style="padding:4px 8px;text-align:right;font-weight:500;">Completadas</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for p in org.projects %}
-            <tr style="border-top:1px solid var(--border);">
-              <td style="padding:8px 0;">
-                <a href="{% url 'project_detail' p.id %}" style="color:var(--text);">
-                  <span style="color:var(--text-muted);font-size:0.78rem;">[{{ p.key }}]</span> {{ p.name }}
-                </a>
-              </td>
-              <td style="padding:8px;text-align:right;font-weight:600;">{{ p.logged }}h</td>
-              <td style="padding:8px;text-align:right;color:var(--text-muted);">{{ p.tasks_total }}</td>
-              <td style="padding:8px;text-align:right;">
-                {% if p.tasks_total %}
-                <span style="color:var(--success);">{{ p.tasks_done }}</span>
-                <span style="color:var(--text-muted);font-size:0.78rem;">/{{ p.tasks_total }}</span>
-                {% else %}—{% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="text-muted text-sm">Aún no hay actividad registrada.</p>
-    {% endif %}
-  </div>
-
-  <!-- Active sessions -->
-  <div class="card" style="margin-top:20px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
-      <div style="font-weight:600;font-size:0.95rem;">Sesiones activas</div>
-      {% if active_sessions.count > 1 %}
-      <form method="post" action="{% url 'session_revoke_all' %}">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-secondary" style="font-size:0.82rem;">Cerrar otras sesiones</button>
-      </form>
-      {% endif %}
-    </div>
-    {% for session in active_sessions %}
-    {% with info=session.get_device_info %}
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;{% if not forloop.last %}border-bottom:1px solid var(--border);{% endif %}">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:34px;height:34px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          {% if info.is_mobile %}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-          {% else %}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          {% endif %}
-        </div>
-        <div>
-          <div style="font-size:0.85rem;font-weight:500;">
-            {{ info.browser }} · {{ info.os }}
-            {% if session.session_key == current_session_key %}
-            <span style="font-size:0.7rem;font-weight:600;background:var(--accent);color:var(--bg);padding:1px 7px;border-radius:8px;margin-left:6px;">Esta sesión</span>
-            {% endif %}
-          </div>
-          <div class="text-muted text-sm">{{ session.ip_address|default:"IP desconocida" }} · {{ session.last_seen|timesince }} ago</div>
-        </div>
-      </div>
-      {% if session.session_key != current_session_key %}
-      <form method="post" action="{% url 'session_revoke' session.session_key %}">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-secondary" style="font-size:0.78rem;padding:4px 10px;">Cerrar</button>
-      </form>
-      {% endif %}
-    </div>
-    {% endwith %}
-    {% empty %}
-    <div class="text-muted text-sm">No hay sesiones activas.</div>
-    {% endfor %}
-  </div>
 </div>
 
+<!-- Modal desactivar 2FA -->
 {% if totp_enabled %}
-<div id="modal-disable-2fa" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
-  <div class="card" style="max-width:380px;width:100%;margin:20px;">
-    <div style="font-weight:700;font-size:1rem;margin-bottom:8px;">Desactivar autenticación en dos pasos</div>
-    <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:20px;">
-      Introduce tu código actual de 6 dígitos para confirmar que deseas desactivar el 2FA.
-    </p>
+<div id="modal-disable-2fa" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-header">
+      <span class="modal-title">Desactivar 2FA</span>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="document.getElementById('modal-disable-2fa').style.display='none'">✕</button>
+    </div>
     <form method="post" action="{% url 'two_factor_disable' %}">
       {% csrf_token %}
-      <div class="form-group" style="margin-bottom:20px;">
-        <input type="text" name="token" class="form-control"
-          inputmode="numeric" autocomplete="one-time-code"
-          maxlength="6" placeholder="000000"
-          style="letter-spacing:0.25em;font-size:1.2rem;text-align:center;" required>
+      <div class="modal-body">
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">Introduce el código de tu app para confirmar que quieres desactivar la autenticación en dos pasos.</p>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Código de verificación</label>
+          <input type="text" name="token" inputmode="numeric" maxlength="6" autocomplete="one-time-code"
+            class="form-control" placeholder="123456" required>
+        </div>
       </div>
-      <div style="display:flex;gap:10px;">
-        <button type="button" onclick="document.getElementById('modal-disable-2fa').style.display='none'"
-          class="btn btn-secondary" style="flex:1;justify-content:center;">Cancelar</button>
-        <button type="submit" class="btn btn-primary" style="flex:2;justify-content:center;background:#ef4444;border-color:#ef4444;">
-          Desactivar
-        </button>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-disable-2fa').style.display='none'">Cancelar</button>
+        <button type="submit" class="btn btn-danger">Desactivar</button>
       </div>
     </form>
   </div>
 </div>
 {% endif %}
+
+<!-- Actividad global — mismo ancho que la card principal -->
+<div style="max-width:560px;margin:20px auto 0;">
+<div class="card">
+  <div class="section-title" style="margin-bottom:16px;">Mi actividad</div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
+    <div style="flex:1;min-width:110px;background:var(--bg3);border-radius:var(--radius);padding:12px 16px;text-align:center;">
+      <div style="font-size:1.4rem;font-weight:700;">{{ total_hours|floatformat:1 }}h</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Horas totales</div>
+    </div>
+    <div style="flex:1;min-width:110px;background:var(--bg3);border-radius:var(--radius);padding:12px 16px;text-align:center;">
+      <div style="font-size:1.4rem;font-weight:700;">{{ task_counts.total }}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Tareas asignadas</div>
+    </div>
+    <div style="flex:1;min-width:110px;background:var(--bg3);border-radius:var(--radius);padding:12px 16px;text-align:center;">
+      <div style="font-size:1.4rem;font-weight:700;color:var(--success);">{{ task_counts.done }}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">Completadas</div>
+    </div>
+    <div style="flex:1;min-width:110px;background:var(--bg3);border-radius:var(--radius);padding:12px 16px;text-align:center;">
+      <div style="font-size:1.4rem;font-weight:700;color:var(--accent);">{{ task_counts.in_progress }}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">En progreso</div>
+    </div>
+    <div style="flex:1;min-width:110px;background:var(--bg3);border-radius:var(--radius);padding:12px 16px;text-align:center;">
+      <div style="font-size:1.4rem;font-weight:700;color:var(--warning);">{{ task_counts.in_review }}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">En revisión</div>
+    </div>
+  </div>
+
+  {% if activity_by_org %}
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    {% for org in activity_by_org %}
+    <div>
+      <div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;">
+        {{ org.name }}
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+        <thead>
+          <tr style="color:var(--text-muted);font-size:0.75rem;">
+            <th style="padding:4px 0;text-align:left;font-weight:500;">Proyecto</th>
+            <th style="padding:4px 8px;text-align:right;font-weight:500;">Horas</th>
+            <th style="padding:4px 8px;text-align:right;font-weight:500;">Tareas</th>
+            <th style="padding:4px 8px;text-align:right;font-weight:500;">Completadas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in org.projects %}
+          <tr style="border-top:1px solid var(--border);">
+            <td style="padding:8px 0;">
+              <a href="{% url 'project_detail' p.id %}" style="color:var(--text);">
+                <span style="color:var(--text-muted);font-size:0.78rem;">[{{ p.key }}]</span> {{ p.name }}
+              </a>
+            </td>
+            <td style="padding:8px;text-align:right;font-weight:600;">{{ p.logged }}h</td>
+            <td style="padding:8px;text-align:right;color:var(--text-muted);">{{ p.tasks_total }}</td>
+            <td style="padding:8px;text-align:right;">
+              {% if p.tasks_total %}
+              <span style="color:var(--success);">{{ p.tasks_done }}</span>
+              <span style="color:var(--text-muted);font-size:0.78rem;">/{{ p.tasks_total }}</span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-muted text-sm">Aún no hay actividad registrada.</p>
+  {% endif %}
+</div>
+</div>
 {% endblock %}

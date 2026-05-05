@@ -19,7 +19,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="task-detail-layout" style="display:grid;gap:20px;align-items:start;">
+<div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;">
   <!-- Main column -->
   <div style="display:flex;flex-direction:column;gap:16px;">
     <!-- Task header -->
@@ -42,7 +42,7 @@
         {% if task.completed_at %} · Completada {{ task.completed_at|date:"d M Y" }}{% endif %}
       </div>
       {% if task.description %}
-      <div class="md-content" data-render-markdown="true" style="font-size:0.9rem;line-height:1.7;color:var(--text);padding-top:12px;border-top:1px solid var(--border);">{{ task.description }}</div>
+      <div style="font-size:0.9rem;line-height:1.7;color:var(--text);white-space:pre-wrap;padding-top:12px;border-top:1px solid var(--border);">{{ task.description }}</div>
       {% else %}
       <p class="text-muted text-sm" style="padding-top:12px;border-top:1px solid var(--border);">Sin descripción.</p>
       {% endif %}
@@ -57,13 +57,13 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           <div>
             <div style="font-size:0.88rem;font-weight:600;color:var(--success);">Estimación validada</div>
-            <div class="text-muted text-sm">{{ task.estimated_hours|floatformat:"-2" }}h aprobadas por <a href="{% url 'user_profile' task.task_responsible.pk %}" style="color:inherit;text-decoration:underline;">{{ task.task_responsible.name }}</a></div>
+            <div class="text-muted text-sm">{{ task.estimated_hours|floatformat:"-2" }}h aprobadas{% if task.task_responsible %} por {{ task.task_responsible.name }}{% endif %}</div>
           </div>
           {% else %}
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           <div>
             <div style="font-size:0.88rem;font-weight:600;color:var(--warning);">Estimación pendiente de validación</div>
-            <div class="text-muted text-sm">{{ task.estimated_hours|floatformat:"-2" }}h · esperando aprobación de {% if task.task_responsible %}<a href="{% url 'user_profile' task.task_responsible.pk %}" style="color:inherit;text-decoration:underline;">{{ task.task_responsible.name }}</a>{% else %}un responsable{% endif %}</div>
+            <div class="text-muted text-sm">{{ task.estimated_hours|floatformat:"-2" }}h · esperando aprobación de {% if task.task_responsible %}{{ task.task_responsible.name }}{% else %}un responsable{% endif %}</div>
           </div>
           {% endif %}
         </div>
@@ -142,7 +142,7 @@
           </div>
           <div class="comment-body" style="flex:1;">
             <div class="comment-meta">
-              <a href="{% url 'user_profile' comment.user.pk %}" style="font-weight:600;color:var(--text);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ comment.user.name }}</a>
+              <strong style="color:var(--text);">{{ comment.user.name }}</strong>
               · {{ comment.created_at|date:"d M Y, H:i" }}
               {% if comment.user == request.user %}
               <form method="post" action="{% url 'comment_delete' project.pk task.pk comment.pk %}" style="display:inline;float:right;" onsubmit="return confirm('¿Eliminar comentario?')">
@@ -151,7 +151,7 @@
               </form>
               {% endif %}
             </div>
-            <div class="comment-content md-content" data-render-markdown="true">{{ comment.content }}</div>
+            <div class="comment-content">{{ comment.content }}</div>
           </div>
         </div>
         {% endfor %}
@@ -164,7 +164,7 @@
             {% if request.user.avatar %}<img src="{{ request.user.avatar.url }}" alt="">{% else %}{{ request.user.get_initials }}{% endif %}
           </div>
           <div style="flex:1;">
-            <textarea name="content" class="form-control" data-md-editor="true" rows="3" placeholder="Escribe un comentario..." required></textarea>
+            <textarea name="content" class="form-control" rows="3" placeholder="Escribe un comentario..." required></textarea>
             <button type="submit" class="btn btn-primary btn-sm" style="margin-top:8px;">Comentar</button>
           </div>
         </div>
@@ -183,7 +183,7 @@
           <span style="font-size:1.2rem;">📎</span>
           <div style="flex:1;min-width:0;">
             <a href="{{ att.file.url }}" target="_blank" style="font-size:0.875rem;font-weight:500;">{{ att.filename }}</a>
-            <div class="text-muted text-sm"><a href="{% url 'user_profile' att.uploaded_by.pk %}" style="color:inherit;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ att.uploaded_by.name }}</a> · {{ att.uploaded_at|date:"d M Y" }}</div>
+            <div class="text-muted text-sm">{{ att.uploaded_by.name }} · {{ att.uploaded_at|date:"d M Y" }}</div>
           </div>
         </div>
         {% endfor %}
@@ -208,10 +208,10 @@
         <div>
           <div class="text-muted text-sm" style="margin-bottom:3px;">Asignado a</div>
           {% if task.assignee %}
-          <a href="{% url 'user_profile' task.assignee.pk %}" style="display:flex;align-items:center;gap:8px;color:var(--text);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+          <div style="display:flex;align-items:center;gap:8px;">
             <div class="avatar avatar-sm">{% if task.assignee.avatar %}<img src="{{ task.assignee.avatar.url }}" alt="">{% else %}{{ task.assignee.get_initials }}{% endif %}</div>
             {{ task.assignee.name }}
-          </a>
+          </div>
           {% else %}<span class="text-muted">Sin asignar</span>{% endif %}
         </div>
         <div>
@@ -223,22 +223,14 @@
           <span class="{% if task.is_overdue %}text-danger{% endif %}">{{ task.due_date|date:"d M Y"|default:"Sin fecha" }}</span>
         </div>
         <div>
-          <div class="text-muted text-sm" style="margin-bottom:3px;">Horas estimadas</div>
+          <div class="text-muted text-sm" style="margin-bottom:3px;">Estimación</div>
           {% if task.estimated_hours %}
-          <span>{{ task.estimated_hours|floatformat:"-2" }}h</span>
+          <span style="display:flex;align-items:center;gap:6px;">
+            {{ task.estimated_hours|floatformat:"-2" }}h
+            {% if task.hours_validated %}<span style="font-size:0.72rem;background:rgba(34,197,94,0.12);color:var(--success);padding:1px 6px;border-radius:10px;">✓ validada</span>{% endif %}
+          </span>
           {% else %}<span class="text-muted">Sin estimación</span>{% endif %}
         </div>
-        {% if task.task_responsible %}
-        <div>
-          <div class="text-muted text-sm" style="margin-bottom:3px;">Responsable</div>
-          <a href="{% url 'user_profile' task.task_responsible.pk %}" style="display:flex;align-items:center;gap:6px;color:var(--text);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
-            <div class="avatar avatar-sm">
-              {% if task.task_responsible.avatar %}<img src="{{ task.task_responsible.avatar.url }}" alt="">{% else %}{{ task.task_responsible.get_initials }}{% endif %}
-            </div>
-            <span style="font-size:0.88rem;">{{ task.task_responsible.name }}</span>
-          </a>
-        </div>
-        {% endif %}
         {% if task.parent_task %}
         <div>
           <div class="text-muted text-sm" style="margin-bottom:3px;">Tarea padre</div>
@@ -252,8 +244,16 @@
     <div class="card">
       <div class="card-header" style="margin-bottom:12px;">
         <span class="card-title">Tiempo registrado</span>
-        <span style="font-size:0.85rem;font-weight:600;color:var(--accent);">{{ total_logged_hours|floatformat:"-2" }}h</span>
+        <span style="font-size:0.85rem;font-weight:600;color:var(--accent);">{{ total_logged_display }}</span>
       </div>
+      {% if estimated_total_min > 0 %}
+      <div style="margin-bottom:12px;">
+        <div class="progress">
+          <div class="progress-bar" style="width:{% widthratio total_logged estimated_total_min 100 %}%;"></div>
+        </div>
+        <div class="text-muted text-sm mt-1">{{ total_logged }} / {{ estimated_total_min }} min ({{ task.estimated_hours|floatformat:"-2" }}h estimadas)</div>
+      </div>
+      {% endif %}
       {% if time_logs %}
       <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;max-height:160px;overflow-y:auto;">
         {% for log in time_logs %}
@@ -270,23 +270,22 @@
       <form method="post" action="{% url 'timelog_create' project.pk task.pk %}">
         {% csrf_token %}
         <div class="form-group">
-          <label class="form-label">Tiempo trabajado</label>
           <div style="display:flex;gap:6px;align-items:center;">
-            <input type="number" name="hours_h" class="form-control" placeholder="0" min="0" style="width:72px;text-align:center;" value="0">
+            <input type="number" name="log_h" class="form-control" placeholder="0" min="0"
+                   style="width:68px;text-align:center;" value="0">
             <span style="color:var(--text-muted);font-size:0.85rem;flex-shrink:0;">h</span>
-            <input type="number" name="hours_m" class="form-control" placeholder="0" min="0" max="59" style="width:72px;text-align:center;" value="0">
+            <input type="number" name="log_m" class="form-control" placeholder="0" min="0" max="59"
+                   style="width:68px;text-align:center;" value="0">
             <span style="color:var(--text-muted);font-size:0.85rem;flex-shrink:0;">min</span>
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Fecha</label>
-          <input type="date" name="logged_date" class="form-control">
+          <input type="text" name="note" class="form-control" placeholder="Nota (opcional)">
         </div>
         <div class="form-group">
-          <label class="form-label">Nota <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
-          <input type="text" name="note" class="form-control" placeholder="¿En qué trabajaste?">
+          <input type="date" name="logged_date" class="form-control">
         </div>
-        <button type="submit" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;">Registrar horas</button>
+        <button type="submit" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;">Registrar tiempo</button>
       </form>
     </div>
   </div>
