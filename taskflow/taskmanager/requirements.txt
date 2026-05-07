@@ -51,3 +51,4 @@ zensical==0.0.37
 djangorestframework>=3.15.0
 djangorestframework-simplejwt>=5.3.0
 django-ratelimit>=4.1.0
+dj-database-url>=1.2.0
