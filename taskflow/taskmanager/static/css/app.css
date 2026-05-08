@@ -439,8 +439,16 @@ a:hover {
   color: var(--border);
 }
 
-@media (max-width: 810px) {
+@media (max-width: 830px) {
   .breadcrumb {
+    display: none;
+  }
+}
+
+@media (max-width: 1030px) {
+
+  .page-task-form .breadcrumb,
+  .page-task-detail .breadcrumb {
     display: none;
   }
 }
@@ -1415,7 +1423,7 @@ hr.divider {
   display: none;
 }
 
-@media (min-width: 769px) {
+@media (min-width: 830px) {
   .search-trigger {
     display: flex;
     align-items: center;
@@ -1942,4 +1950,20 @@ kbd {
   color: var(--text-muted);
   flex-shrink: 0;
   line-height: 1.6;
+}
+
+/* ── Custom Responsiveness for Task Pages ── */
+@media (max-width: 1030px) {
+  html body.page-task-form .breadcrumb,
+  html body.page-task-detail .breadcrumb {
+    display: none !important;
+  }
+}
+
+@media (max-width: 830px) {
+  .task_form {
+    display: flex;
+    flex-direction: column;
+    margin-top: 24px;
+  }
 }

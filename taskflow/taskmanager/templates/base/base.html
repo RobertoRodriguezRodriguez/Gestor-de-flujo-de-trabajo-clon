@@ -11,7 +11,7 @@
   {% block extra_css %}{% endblock %}
   <script>(function(){var b='{% if user.is_authenticated %}{{ user.base_theme }}{% else %}'+(localStorage.getItem('base-theme')||'dark')+'{% endif %}';var c='{% if user.is_authenticated %}{{ user.color_theme }}{% else %}'+(localStorage.getItem('color-theme')||'default')+'{% endif %}';document.documentElement.setAttribute('data-theme',b);document.documentElement.setAttribute('data-color',c);})();</script>
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
 
 {% if user.is_authenticated %}
 <div class="app-wrapper">

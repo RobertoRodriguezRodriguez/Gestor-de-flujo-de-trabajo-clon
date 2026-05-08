@@ -1,5 +1,6 @@
 {% extends 'base/base.html' %}
 {% block title %}{{ task.title }}{% endblock %}
+{% block body_class %}page-task-detail{% endblock %}
 {% block breadcrumb %}
 <a href="{% url 'dashboard' %}">Dashboard</a><span class="breadcrumb-sep">/</span>
 <a href="{% url 'project_detail' project.pk %}">{{ project.name }}</a><span class="breadcrumb-sep">/</span>
@@ -19,7 +20,7 @@
 {% endblock %}
 
 {% block content %}
-<div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;">
+<div style="display:grid;grid-template-columns:1fr;gap:20px;align-items:start;">  
   <!-- Main column -->
   <div style="display:flex;flex-direction:column;gap:16px;">
     <!-- Task header -->
