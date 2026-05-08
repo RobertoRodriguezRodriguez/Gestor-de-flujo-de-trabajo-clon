@@ -8,15 +8,36 @@
 {% endblock %}
 
 {% block topbar_actions %}
-<a href="{% url 'project_detail' project.pk %}" class="btn btn-ghost btn-sm">
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-  Volver al tablón
-</a>
-<a href="{% url 'task_edit' project.pk task.pk %}" class="btn btn-secondary btn-sm">Editar</a>
-<form method="post" action="{% url 'task_delete' project.pk task.pk %}" style="display:inline;" onsubmit="return confirm('¿Eliminar esta tarea?')">
-  {% csrf_token %}
-  <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
-</form>
+<div class="task-actions-desktop">
+  <a href="{% url 'project_detail' project.pk %}" class="btn btn-ghost btn-sm">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Volver al tablón
+  </a>
+  <a href="{% url 'task_edit' project.pk task.pk %}" class="btn btn-secondary btn-sm">Editar</a>
+  <form method="post" action="{% url 'task_delete' project.pk task.pk %}" style="display:inline;" onsubmit="return confirm('¿Eliminar esta tarea?')">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+  </form>
+</div>
+
+<div class="task-actions-mobile flt-drop" style="display:none;">
+  <button class="btn btn-ghost btn-sm btn-icon flt-btn" onclick="toggleTaskMenu(event)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </button>
+  <div class="flt-menu" id="task-mobile-menu" style="right: 0; left: auto; top: 100%; margin-top: 4px; min-width: 150px; padding: 8px 0;">
+    <a href="{% url 'project_detail' project.pk %}" class="dropdown-item">Volver al tablón</a>
+    <div class="flt-sep" style="margin: 4px 0;"></div>
+    <a href="{% url 'task_edit' project.pk task.pk %}" class="dropdown-item">Editar</a>
+    <form method="post" action="{% url 'task_delete' project.pk task.pk %}" onsubmit="return confirm('¿Eliminar esta tarea?')">
+      {% csrf_token %}
+      <button type="submit" class="dropdown-item" style="color:var(--danger); width:100%; text-align:left; background:none; border:none; padding:8px 16px; cursor:pointer; font-size:0.85rem;">Eliminar</button>
+    </form>
+  </div>
+</div>
 {% endblock %}
 
 {% block content %}
@@ -291,4 +312,29 @@
     </div>
   </div>
 </div>
+
+<script>
+  function toggleTaskMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('task-mobile-menu');
+    const btn = e.currentTarget;
+    const isOpen = menu.classList.contains('open');
+    
+    // Close other menus
+    document.querySelectorAll('.flt-menu.open').forEach(m => m.classList.remove('open'));
+    document.querySelectorAll('.flt-btn.open').forEach(b => b.classList.remove('open'));
+    
+    if (!isOpen) {
+      menu.classList.add('open');
+      btn.classList.add('open');
+    }
+  }
+  
+  document.addEventListener('click', () => {
+    const menu = document.getElementById('task-mobile-menu');
+    const btn = document.querySelector('.task-actions-mobile .flt-btn');
+    if (menu) menu.classList.remove('open');
+    if (btn) btn.classList.remove('open');
+  });
+</script>
 {% endblock %}

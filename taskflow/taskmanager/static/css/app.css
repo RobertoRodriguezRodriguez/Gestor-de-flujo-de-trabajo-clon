@@ -1961,9 +1961,39 @@ kbd {
 }
 
 @media (max-width: 830px) {
-  .task_form {
-    display: flex;
-    flex-direction: column;
+  .task_form,
+  .task_form .form-row,
+  .task_form .form-row-3 {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
     margin-top: 24px;
   }
+  
+  .task-actions-desktop {
+    display: none !important;
+  }
+  
+  .task-actions-mobile {
+    display: block !important;
+  }
+}
+
+.dropdown-item {
+  display: block;
+  padding: 8px 16px;
+  color: var(--text);
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.dropdown-item:hover {
+  background: var(--bg3);
 }
